@@ -6,7 +6,6 @@ import asyncio
 import logging
 import time
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
 from typing import cast
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -20,6 +19,7 @@ from app.core.request_scope import request_session
 from app.infra.rate_limit import RateLimiter
 from app.observability.metrics import REQUEST_LATENCY, REQUESTS, ROUTING, STAGE_LATENCY, TOKEN_USAGE
 from app.providers.base import LLMProvider
+from app.repositories.pending_actions import PendingActionRepository
 from app.repositories.session_repository import SessionRepository
 from app.retrieval.hybrid import HybridRetriever
 from app.retrieval.reranker import DocumentReranker
@@ -29,14 +29,6 @@ from app.tools.factory import build_tool_registry
 from app.tools.registry import ToolRegistry
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class PendingConfirmation:
-    session_id: str
-    user_id: str
-    action: ActionProposal
-    expires_at: float
 
 
 class ChatService:
@@ -58,7 +50,6 @@ class ChatService:
         self._session_factory = session_factory
         self._rate_limiter = rate_limiter
         self.registry = registry or build_tool_registry(retriever)
-        self._pending_actions: dict[str, PendingConfirmation] = {}
         self._graph = build_graph(
             llm=llm,
             settings=settings,
@@ -76,8 +67,8 @@ class ChatService:
             result = await self._invoke(state)
             response = self._to_response(result, session_id=session_id, trace_id=trace_id)
             await self._persist(db, request, response, summary=result.get("summary") or "")
+            await self._remember_pending(db, request, response)
             await db.commit()
-        self._remember_pending(request, response)
         self._observe(response, started)
         return response
 
@@ -143,8 +134,8 @@ class ChatService:
             merged: AgentState = holder["merged"]
             response = self._to_response(merged, session_id=session_id, trace_id=trace_id)
             await self._persist(db, request, response, summary=merged.get("summary") or "")
+            await self._remember_pending(db, request, response)
             await db.commit()
-        self._remember_pending(request, response)
         self._observe(response, started)
         # Never stream the LLM's JSON envelope or an answer that may still be
         # replaced by the faithfulness check. Only the final answer is public.
@@ -165,9 +156,9 @@ class ChatService:
         session_id: str,
         trace_id: str,
     ) -> AgentState:
-        confirmed_action = self._resolve_confirmation(request, session_id)
         sessions = SessionRepository(db)
         await sessions.get_or_create(session_id, request.user_id)
+        confirmed_action = await self._resolve_confirmation(db, request, session_id)
         history = await sessions.recent_messages(session_id)
         return {
             "trace_id": trace_id,
@@ -188,32 +179,32 @@ class ChatService:
             "idempotency_key": request.idempotency_key,
         }
 
-    def _resolve_confirmation(self, request: ChatRequest, session_id: str) -> ActionProposal | None:
+    async def _resolve_confirmation(
+        self, db: AsyncSession, request: ChatRequest, session_id: str
+    ) -> ActionProposal | None:
         if not request.confirm_action_id:
             return None
-        pending = self._pending_actions.get(request.confirm_action_id)
-        if (
-            pending is None
-            or pending.expires_at < time.monotonic()
-            or pending.session_id != session_id
-            or pending.user_id != request.user_id
-        ):
+        action = await PendingActionRepository(db).get(
+            request.confirm_action_id,
+            session_id=session_id,
+            user_id=request.user_id,
+        )
+        if action is None:
             raise InvalidRequestError("待确认操作不存在或已过期，请重新发起。")
-        return pending.action
+        return action
 
-    def _remember_pending(self, request: ChatRequest, response: ChatResponse) -> None:
-        now = time.monotonic()
-        self._pending_actions = {
-            key: value for key, value in self._pending_actions.items() if value.expires_at > now
-        }
+    async def _remember_pending(
+        self, db: AsyncSession, request: ChatRequest, response: ChatResponse
+    ) -> None:
         action = response.pending_action
-        if action is not None:
-            self._pending_actions[action.action_id] = PendingConfirmation(
-                session_id=response.session_id,
-                user_id=request.user_id,
-                action=action,
-                expires_at=now + 15 * 60,
-            )
+        if action is None:
+            return
+        await PendingActionRepository(db).put(
+            action,
+            session_id=response.session_id,
+            user_id=request.user_id,
+            ttl_seconds=15 * 60,
+        )
 
     async def _invoke(self, state: AgentState) -> AgentState:
         try:

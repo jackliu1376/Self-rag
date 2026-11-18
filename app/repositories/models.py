@@ -113,3 +113,17 @@ class IdempotencyRow(Base):
     fingerprint: Mapped[str] = mapped_column(String(64))
     response_json: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class PendingActionRow(Base):
+    __tablename__ = "pending_actions"
+
+    action_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    session_id: Mapped[str] = mapped_column(String(64), index=True)
+    user_id: Mapped[str] = mapped_column(String(64), index=True)
+    tool_name: Mapped[str] = mapped_column(String(64))
+    arguments_json: Mapped[str] = mapped_column(Text)
+    risk: Mapped[str] = mapped_column(String(16))
+    summary: Mapped[str] = mapped_column(Text)
+    # Unix seconds: SQLite returns naive datetimes, so compare integers instead.
+    expires_at: Mapped[int] = mapped_column(Integer, index=True)

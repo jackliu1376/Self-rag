@@ -312,7 +312,7 @@ docs/             技术手册与教学文档
 
 | 优先级 | 改进项 | 目标与代码入口 |
 |:---:|:---|:---|
-| P0 | **身份与会话隔离** | 不再信任请求体中的 `user_id`；读取已有会话时校验所属用户，避免跨用户读取历史。[请求模型](app/schemas/chat.py) · [会话仓储](app/repositories/session_repository.py) |
+| P0 | **身份认证** | 已完成会话归属校验（跨用户读取返回 403）；仍需由可信网关签发并绑定 `user_id`，不能信任请求体。[请求模型](app/schemas/chat.py) · [会话仓储](app/repositories/session_repository.py) |
 | P0 | **云端部署边界** | 移除数据库、Redis、Qdrant 的公网端口映射和固定密码；只开放受控的 Web/API 入口。[Compose](docker-compose.yml) |
 | P0 | **真正接入多轮记忆** | 回答生成目前只使用当前问题，初始摘要为空，压缩发生在回答之后；应把历史与摘要按预算送入生成、路由和规划。[对话服务](app/services/chat_service.py) · [生成节点](app/agents/nodes/generate.py) · [记忆节点](app/agents/nodes/memory.py) |
 | P1 | **可靠的人工确认** | 待确认操作从进程内字典迁移到持久化存储，支持过期、一次性消费和多副本。[对话服务](app/services/chat_service.py) · [执行节点](app/agents/nodes/executor.py) |

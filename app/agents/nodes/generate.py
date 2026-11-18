@@ -65,6 +65,11 @@ async def generate_node(state: AgentState, llm: LLMProvider) -> dict:
             if chunk.chunk_id in citation_ids
         ]
         return {"final_answer": answer, "citations": citations, "refused": False}
+    confirmation_note = (
+        "\n\n本轮用户已确认执行，工具结果即实际执行结果，可直接说明完成状态。"
+        if state.get("confirmed_action")
+        else ""
+    )
     messages = [
         {"role": "system", "content": ANSWER_SYSTEM},
         {
@@ -75,7 +80,8 @@ async def generate_node(state: AgentState, llm: LLMProvider) -> dict:
                 strategy=strategy.value,
                 evidence=evidence,
                 tool_results=tool_text,
-            ),
+            )
+            + confirmation_note,
         },
     ]
     try:
@@ -137,7 +143,9 @@ def _extractive_fallback(query: str, evidence: str, tool_text: str) -> str:
     return "暂时无法基于现有信息给出可靠答复，请补充相关信息或转人工。"
 
 
-def _offline_answer(state: AgentState) -> tuple[str, set[str]]:
+def _offline_answer(
+    state: AgentState, *, reason: str = "当前未配置生成模型"
+) -> tuple[str, set[str]]:
     """Use only retrieved text or whitelisted tool fields when no LLM is configured."""
     strategy = state.get("strategy")
     if strategy == RetrievalStrategy.DIRECT:
@@ -192,7 +200,7 @@ def _offline_answer(state: AgentState) -> tuple[str, set[str]]:
                 title = str(item.get("title") or "相关政策")
                 excerpt = str(item.get("content") or "").strip()[:260]
                 return (
-                    f"当前未配置生成模型。找到《{title}》中的资料节选，请核对原文：\n\n> {excerpt}",
+                    f"{reason}。找到《{title}》中的资料节选，请核对原文：\n\n> {excerpt}",
                     set(),
                 )
 
@@ -201,7 +209,7 @@ def _offline_answer(state: AgentState) -> tuple[str, set[str]]:
         chunk = chunks[0]
         excerpt = chunk.content.strip()[:260]
         return (
-            f"当前未配置生成模型，以下是《{chunk.title}》的资料节选，请核对原文：\n\n> {excerpt}",
+            f"{reason}，以下是《{chunk.title}》的资料节选，请核对原文：\n\n> {excerpt}",
             {chunk.chunk_id},
         )
     return (

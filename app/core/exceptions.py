@@ -51,6 +51,11 @@ class UnauthorizedError(AppError):
         super().__init__(message, error_code=ErrorCode.UNAUTHORIZED, http_status=401)
 
 
+class ForbiddenError(AppError):
+    def __init__(self, message: str = "forbidden") -> None:
+        super().__init__(message, error_code=ErrorCode.FORBIDDEN, http_status=403)
+
+
 class LLMProviderError(AppError):
     def __init__(
         self,

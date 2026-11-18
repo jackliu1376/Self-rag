@@ -22,7 +22,7 @@
 | 文本清洗 | 切块后 NFKC/空白/硬换行；精确去重；近重复只日志。不做 embedding 聚类，不改中文数字。「七天」保持「七天」 | `app/retrieval/cleaning.py` |
 | 知识库 PII | 仅非 `.md` 入库前 `mask_pii`；政策 Markdown 与日志脱敏分开 | `app/core/security.py` |
 | 多租户 | 无；`user_id` 字符串隔离 | `OrderRepository.get_visible_order` |
-| 身份认证 | API 直接接受请求体 `user_id`，尚未验证身份；生产需可信网关绑定用户身份 | `app/api/routes/chat.py` |
+| 身份认证 | 已做会话归属校验：session 只能被创建者读写，跨用户返回 403；`user_id` 本身仍由可信网关签发并绑定 | `app/repositories/session_repository.py` |
 | 演示数据 | 启动不自动写入；显式运行 `python -m scripts.seed_demo`，可重复执行 | `scripts/seed_demo.py` |
 | 启动迁移 | `create_all`，Alembic 有版本但默认不跑 | `alembic/versions/` |
 
@@ -35,6 +35,7 @@
 | Skill 按需加载 | `match_skill` + Planner 收缩目录 |
 | 执行层 Fallback | `execute_with_fallback` |
 | 忠实度 LLM 自纠错 | `self_correct_answer` |
+| 待确认动作持久化 | `app/repositories/pending_actions.py`（DB 表，重启与多实例有效） |
 | Unstructured 多格式 ingest | `app/retrieval/unstructured_parser.py`（testing / 缺 extra 降级 Markdown） |
 | 切块后清洗与精确去重 | `app/retrieval/cleaning.py` |
 
