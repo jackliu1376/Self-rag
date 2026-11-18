@@ -43,7 +43,13 @@ export interface Capabilities {
   retriever: string;
   reranker: string;
   llm: string;
+  llm_model: string;
+  embedding_model: string;
+  reranker_model: string;
+  llm_quota_used_percent: number | null;
+  llm_quota_reset_at: number | null;
   degraded: boolean;
+  degraded_reasons: string[];
 }
 
 export type StreamEvent =

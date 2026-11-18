@@ -65,6 +65,37 @@ async def test_cross_encoder_uses_injected_model() -> None:
     assert ranked[0][1] == 10.0
 
 
+def test_cross_encoder_prefers_cached_weights(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    class _CachedCrossEncoder:
+        def __init__(self, model_name, **kwargs):
+            calls.append(kwargs)
+
+    monkeypatch.setattr("sentence_transformers.CrossEncoder", _CachedCrossEncoder, raising=False)
+    provider = CrossEncoderRerankProvider(_settings())
+    assert provider.available is True
+    assert calls[0]["local_files_only"] is True
+
+
+def test_cross_encoder_fetches_when_cache_is_missing(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    class _MissingThenFetchCrossEncoder:
+        def __init__(self, model_name, **kwargs):
+            calls.append(kwargs)
+            if len(calls) == 1:
+                raise RuntimeError("not cached")
+
+    monkeypatch.setattr(
+        "sentence_transformers.CrossEncoder", _MissingThenFetchCrossEncoder, raising=False
+    )
+    provider = CrossEncoderRerankProvider(_settings())
+    assert provider.available is True
+    assert len(calls) == 2
+    assert calls[1].get("local_files_only") is not True
+
+
 @pytest.mark.asyncio
 async def test_testing_env_skips_download() -> None:
     provider = CrossEncoderRerankProvider(_settings(app_env="testing"))

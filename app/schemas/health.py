@@ -29,4 +29,10 @@ class CapabilitiesResponse(BaseModel):
     retriever: str
     reranker: str
     llm: str
+    llm_model: str
+    embedding_model: str
+    reranker_model: str
+    llm_quota_used_percent: int | None = None
+    llm_quota_reset_at: int | None = None
     degraded: bool
+    degraded_reasons: list[str] = Field(default_factory=list)

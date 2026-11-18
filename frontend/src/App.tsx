@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { ArrowDown, CircleHelp, Menu, PanelLeftOpen } from "lucide-react";
-import { checkHealth } from "./lib/api";
+import { checkHealth, getCapabilities } from "./lib/api";
+import { runtimeStatus } from "./lib/runtime";
 import { useChat } from "./hooks/useChat";
 import { Composer } from "./components/Composer";
 import { Logo } from "./components/Logo";
 import { MessageView } from "./components/MessageView";
 import { SearchDialog } from "./components/SearchDialog";
 import { Sidebar } from "./components/Sidebar";
-import type { ActionProposal } from "./types";
+import type { ActionProposal, Capabilities } from "./types";
 
 const SUGGESTIONS = [
   { icon: "↗", title: "退货政策", prompt: "定制商品过了七天，但有质量问题还能退吗？" },
@@ -23,6 +24,7 @@ function App() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [healthy, setHealthy] = useState<boolean | null>(null);
+  const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [theme, setTheme] = useState<"light" | "dark">(() => localStorage.getItem("adaptive-rag-theme") === "dark" ? "dark" : "light");
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -33,7 +35,15 @@ function App() {
   useEffect(() => {
     const controller = new AbortController();
     void checkHealth(controller.signal).then(setHealthy);
-    return () => controller.abort();
+    void getCapabilities(controller.signal).then(setCapabilities);
+    const timer = window.setInterval(() => {
+      void checkHealth(controller.signal).then(setHealthy);
+      void getCapabilities(controller.signal).then(setCapabilities);
+    }, 30_000);
+    return () => {
+      controller.abort();
+      window.clearInterval(timer);
+    };
   }, []);
   useEffect(() => {
     function onKey(event: globalThis.KeyboardEvent) {
@@ -61,13 +71,15 @@ function App() {
     });
   }
 
+  const runtime = runtimeStatus(capabilities);
+
   return <div className={`app-shell ${sidebarCollapsed ? "sidebar-collapsed" : ""}`}>
     <Sidebar conversations={chat.conversations} activeId={chat.active?.id ?? null} open={sidebarOpen} onClose={() => { setSidebarOpen(false); setSidebarCollapsed(true); }} onNew={newChat} onSelect={selectChat} onRemove={chat.remove} onSearch={() => setSearchOpen(true)} onTheme={() => setTheme(theme === "light" ? "dark" : "light")} theme={theme} />
     <main className="main-panel">
       <header className="topbar">
         <button className="icon-button open-sidebar" aria-label="打开侧栏" title="打开侧栏" onClick={() => { setSidebarCollapsed(false); setSidebarOpen(true); }}>{sidebarCollapsed ? <PanelLeftOpen size={20} /> : <Menu size={20} />}</button>
         <span className="model-title">Self-RAG</span>
-        <div className="topbar-right"><span className={`connection-pill ${healthy === false ? "offline" : ""}`}><span />{healthy === null ? "连接中" : healthy ? "已连接" : "服务未连接"}</span><button className="icon-button help-button" title="说明" aria-label="说明" onClick={() => window.open("https://github.com/jackliu1376/Self-rag", "_blank", "noopener,noreferrer")}><CircleHelp size={19} /></button></div>
+        <div className="topbar-right">{runtime && <span className={`runtime-pill ${runtime.degraded ? "degraded" : ""}`} title={runtime.title}>{runtime.label}</span>}<span className={`connection-pill ${healthy === false ? "offline" : ""}`}><span />{healthy === null ? "连接中" : healthy ? "已连接" : "服务未连接"}</span><button className="icon-button help-button" title="说明" aria-label="说明" onClick={() => window.open("https://github.com/jackliu1376/Self-rag", "_blank", "noopener,noreferrer")}><CircleHelp size={19} /></button></div>
       </header>
       {healthy === false && <div className="service-banner" role="status"><strong>暂时无法连接服务</strong><span>请确认后端已启动后重试。</span></div>}
       {chat.active ? <div className="chat-content"><MessageView conversation={chat.active} busy={chat.busy} onConfirm={confirm} onCancel={(messageId) => chat.dismissAction(chat.active!.id, messageId)} /></div>

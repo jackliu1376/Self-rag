@@ -93,11 +93,21 @@ class CrossEncoderRerankProvider:
                     "cross_encoder_loading",
                     extra={"model": self._settings.cross_encoder_model, "device": device},
                 )
-                self._model = CrossEncoder(
-                    self._settings.cross_encoder_model,
-                    device=device,
-                    max_length=self._settings.cross_encoder_max_length,
-                )
+                try:
+                    # Cache first: hub metadata checks can 429/offline even with weights present.
+                    self._model = CrossEncoder(
+                        self._settings.cross_encoder_model,
+                        device=device,
+                        max_length=self._settings.cross_encoder_max_length,
+                        local_files_only=True,
+                    )
+                except Exception:
+                    logger.warning("cross_encoder_cached_weights_missing_fetching")
+                    self._model = CrossEncoder(
+                        self._settings.cross_encoder_model,
+                        device=device,
+                        max_length=self._settings.cross_encoder_max_length,
+                    )
             except Exception as exc:  # model download / CUDA / Hub errors
                 self._load_error = str(exc)
                 logger.warning("cross_encoder_load_failed", extra={"error": str(exc)})

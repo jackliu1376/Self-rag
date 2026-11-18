@@ -102,7 +102,7 @@ async def faithfulness_node(
         return {"extra": extra}
     HALLUCINATION_FLAGS.inc()
     if result.rationale == "checker_unavailable":
-        fallback_answer, citation_ids = _offline_answer(state)
+        fallback_answer, citation_ids = _offline_answer(state, reason="答案校验暂时不可用")
         citations = [
             Citation(
                 document_id=chunk.document_id,

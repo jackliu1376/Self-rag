@@ -131,7 +131,14 @@ class BgeM3EmbeddingProvider:
         from sentence_transformers import SentenceTransformer
 
         model_id = self._settings.local_embedding_model
-        return SentenceTransformer(model_id, device=device, trust_remote_code=True)
+        try:
+            # Cache first: hub metadata checks can 429/offline even with weights present.
+            return SentenceTransformer(
+                model_id, device=device, trust_remote_code=True, local_files_only=True
+            )
+        except Exception:
+            logger.warning("local_embedding_cached_weights_missing_fetching")
+            return SentenceTransformer(model_id, device=device, trust_remote_code=True)
 
     async def ping(self) -> bool:
         try:

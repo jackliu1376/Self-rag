@@ -25,6 +25,47 @@ def test_health_and_chat_greeting() -> None:
         assert "x-trace-id" in response.headers
 
 
+def test_ready_reports_llm_mode() -> None:
+    with _client() as client:
+        body = client.get("/api/v1/ready").json()
+    llm = next(item for item in body["dependencies"] if item["name"] == "llm")
+    assert llm["detail"] == "offline:no_api_key"
+
+
+def test_capabilities_reports_models_and_degradation_reasons() -> None:
+    with _client() as client:
+        body = client.get("/api/v1/capabilities").json()
+    assert body["llm"] == "offline"
+    assert body["llm_model"] == "offline"
+    assert body["embedding_model"] == "hash"
+    assert body["reranker_model"]
+    assert body["llm_quota_used_percent"] is None
+    assert body["llm_quota_reset_at"] is None
+    assert body["degraded"] is True
+    reasons = body["degraded_reasons"]
+    assert any(reason.startswith("llm:") for reason in reasons)
+    assert any(reason.startswith("embedding:") for reason in reasons)
+    assert any(reason.startswith("reranker:") for reason in reasons)
+
+
+def test_session_owned_by_another_user_is_forbidden() -> None:
+    with _client() as client:
+        created = client.post("/api/v1/chat", json={"message": "你好", "user_id": "u_owner_e2e"})
+        assert created.status_code == 200
+        session_id = created.json()["session_id"]
+
+        forbidden = client.post(
+            "/api/v1/chat",
+            json={
+                "message": "你好",
+                "user_id": "u_intruder_e2e",
+                "session_id": session_id,
+            },
+        )
+        assert forbidden.status_code == 403
+        assert forbidden.json()["error_code"] == "FORBIDDEN"
+
+
 def test_injection_is_refused() -> None:
     with _client() as client:
         response = client.post(

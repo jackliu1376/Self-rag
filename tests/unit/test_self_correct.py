@@ -1,7 +1,8 @@
 import pytest
 
-from app.agents.nodes.faithfulness import self_correct_answer
-from app.guardrails.hallucination import FaithfulnessChecker
+from app.agents.nodes.faithfulness import faithfulness_node, self_correct_answer
+from app.core.enums import RetrievalStrategy
+from app.guardrails.hallucination import FaithfulnessChecker, FaithfulnessResult
 from app.providers.base import LLMResponse
 from app.schemas.common import TokenUsage
 from app.schemas.retrieval import RetrievedChunk
@@ -53,3 +54,31 @@ async def test_self_correct_rewrites_unsupported_answer() -> None:
     assert corrected is True
     assert judged.supported is True
     assert "定制" in answer
+
+
+class _UnavailableChecker:
+    async def check(self, **kwargs) -> FaithfulnessResult:
+        return FaithfulnessResult(supported=False, rationale="checker_unavailable")
+
+
+@pytest.mark.asyncio
+async def test_checker_unavailable_fallback_names_the_real_reason() -> None:
+    chunk = RetrievedChunk(
+        chunk_id="c1",
+        document_id="return_policy_0",
+        title="退货",
+        content="定制商品不适用七天无理由。",
+        score=1.0,
+    )
+    result = await faithfulness_node(
+        {
+            "user_query": "定制杯能七天无理由吗",
+            "final_answer": "可以随时退",
+            "strategy": RetrievalStrategy.SINGLE,
+            "retrieved_chunks": [chunk],
+        },
+        checker=_UnavailableChecker(),
+        llm=_SequenceLLM(),
+    )
+    assert "校验暂时不可用" in result["final_answer"]
+    assert "未配置生成模型" not in result["final_answer"]

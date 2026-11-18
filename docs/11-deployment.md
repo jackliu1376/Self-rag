@@ -6,8 +6,9 @@
 
 1. [本地](#本地)
 2. [Docker Compose](#docker-compose)
-3. [生产检查清单](#生产检查清单)
-4. [扩容、知识库、回滚](#扩容知识库回滚)
+3. [可观测性](#可观测性)
+4. [生产检查清单](#生产检查清单)
+5. [扩容、知识库、回滚](#扩容知识库回滚)
 
 ## 本地
 
@@ -55,6 +56,21 @@ api:
 ```
 
 健康检查打 `http://127.0.0.1:8000/api/v1/health`。镜像非 root，先 COPY 再 `pip install .`。
+
+## 可观测性
+
+多实例模式可叠加 Prometheus + Grafana：
+
+```bash
+docker compose -f docker-compose.multi.yml -f docker-compose.observability.yml up -d --build
+```
+
+- Prometheus：`http://127.0.0.1:9090`，抓取 `api-1:8000` 与 `api-2:8000` 的 `/metrics`
+- Grafana：`http://127.0.0.1:3000`，账号 `admin`，密码 `${GRAFANA_PASSWORD:-admin}`，预置 `Self-RAG` 看板
+- 看板覆盖：请求量/策略分布、拒答比例、P50/P95、分阶段延迟、工具调用、tokens、幻觉标记
+- 默认/单机模式：把 `deploy/observability/prometheus.yml` 的 targets 改成实际 API 地址即可
+
+`/metrics` 是进程内 Prometheus 指标，多副本分别暴露，由 Prometheus 汇总。
 
 ## 生产检查清单
 

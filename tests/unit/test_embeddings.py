@@ -43,6 +43,47 @@ async def test_injected_bge_m3_encodes() -> None:
     assert vectors[1][0] == 0.0
 
 
+def test_local_embedding_prefers_cached_weights(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    class _CachedSentenceTransformer:
+        def __init__(self, model_name, **kwargs):
+            calls.append(kwargs)
+
+        def get_sentence_embedding_dimension(self) -> int:
+            return 512
+
+    monkeypatch.setattr(
+        "sentence_transformers.SentenceTransformer", _CachedSentenceTransformer, raising=False
+    )
+    provider = BgeM3EmbeddingProvider(_settings())
+    assert provider.available is True
+    assert calls[0]["local_files_only"] is True
+
+
+def test_local_embedding_fetches_when_cache_is_missing(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    class _MissingThenFetchSentenceTransformer:
+        def __init__(self, model_name, **kwargs):
+            calls.append(kwargs)
+            if len(calls) == 1:
+                raise RuntimeError("not cached")
+
+        def get_sentence_embedding_dimension(self) -> int:
+            return 512
+
+    monkeypatch.setattr(
+        "sentence_transformers.SentenceTransformer",
+        _MissingThenFetchSentenceTransformer,
+        raising=False,
+    )
+    provider = BgeM3EmbeddingProvider(_settings())
+    assert provider.available is True
+    assert len(calls) == 2
+    assert calls[1].get("local_files_only") is not True
+
+
 @pytest.mark.asyncio
 async def test_testing_env_skips_bge_m3_download() -> None:
     provider = BgeM3EmbeddingProvider(_settings(app_env="testing"))

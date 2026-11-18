@@ -6,6 +6,8 @@ so it stays schema-validated and testable.
 
 from __future__ import annotations
 
+import time
+
 from pydantic import BaseModel
 
 from app.config.settings import Settings
@@ -47,9 +49,19 @@ class SelfRAGLoop:
         *,
         top_k: int,
     ) -> list[RetrievedChunk]:
+        chunks, _ = await self.retrieve_with_timing(query, top_k=top_k)
+        return chunks
+
+    async def retrieve_with_timing(
+        self,
+        query: str,
+        *,
+        top_k: int,
+    ) -> tuple[list[RetrievedChunk], float]:
         accumulated: dict[str, RetrievedChunk] = {}
         current_query = query
         missing = ""
+        rerank_ms = 0.0
         for _hop in range(self._settings.max_retrieval_hops):
             rewritten = await self._rewriter.rewrite(current_query, missing_aspect=missing)
             queries = list(dict.fromkeys([query, *rewritten]))[:2]
@@ -57,9 +69,11 @@ class SelfRAGLoop:
             for search_query in queries:
                 for candidate in await self._retriever.retrieve(search_query, top_k=top_k):
                     candidates_by_id.setdefault(candidate.chunk_id, candidate)
+            rerank_started = time.perf_counter()
             reranked = await self._reranker.rerank(
                 query, list(candidates_by_id.values()), top_n=self._settings.rerank_top_n
             )
+            rerank_ms += (time.perf_counter() - rerank_started) * 1000
             for chunk in reranked:
                 accumulated[chunk.chunk_id] = chunk
             grade = await self._grade(query, list(accumulated.values()))
@@ -67,7 +81,7 @@ class SelfRAGLoop:
                 break
             missing = grade.missing_aspect or "more specific policy conditions"
             current_query = query
-        return list(accumulated.values())[: self._settings.rerank_top_n * 2]
+        return list(accumulated.values())[: self._settings.rerank_top_n * 2], rerank_ms
 
     async def _grade(self, query: str, chunks: list[RetrievedChunk]) -> GradeResult:
         evidence = "\n\n".join(f"[{c.chunk_id}] {c.content}" for c in chunks[:6]) or "(empty)"

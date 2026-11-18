@@ -35,6 +35,8 @@ python -m eval.runner --task e2e --llm
 
 文档级：chunk 的 `document_id` 去掉 `_{index}` 得到 stem，与 `relevant_doc_ids` 比。
 
+E2E 的分阶段延迟只统计实际执行过的阶段（`*_ms > 0`），并同时输出 `intent_n / retrieval_n / llm_n / tool_n` 样本数；未检索的 case 不再把 P50 拉到 0。
+
 ### 代码摘要
 
 ```python

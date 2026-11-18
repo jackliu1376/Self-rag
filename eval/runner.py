@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import os
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -67,6 +68,12 @@ def _summarize_scores(values: list[float]) -> dict:
     }
 
 
+def _stage_stats(values: list[float]) -> tuple[float, int]:
+    """P50 over stages that actually ran; 0 ms means the stage was skipped."""
+    active = [value for value in values if value > 0]
+    return round(percentile(active, 50), 1), len(active)
+
+
 def _keyword_hit(answer: str, keywords: list[str]) -> bool:
     if not keywords:
         return True
@@ -109,7 +116,7 @@ async def eval_intent_llm(*, version: str, overlay: bool) -> dict:
         apply_overlay=overlay,
     )
     rows = load_jsonl(INTENT_PATH)
-    semaphore = asyncio.Semaphore(4)
+    semaphore = asyncio.Semaphore(int(os.environ.get("EVAL_CONCURRENCY", "4")))
     errors = 0
 
     async def _one(row: dict) -> tuple[str, str]:
@@ -302,7 +309,7 @@ async def eval_generation() -> dict:
     bm25, store, _ = await ingest_to_memory("knowledge", embedder)
     retriever = HybridRetriever(bm25, VectorRetriever(store, embedder), rrf_k=60)
     rows = load_jsonl(RAG_PATH)
-    semaphore = asyncio.Semaphore(3)
+    semaphore = asyncio.Semaphore(int(os.environ.get("EVAL_CONCURRENCY", "3")))
 
     naive_supported = 0
     rag_supported = 0
@@ -454,6 +461,10 @@ async def eval_e2e() -> dict:
             )
     finally:
         await container.aclose()
+    intent_p50, intent_n = _stage_stats(intent_ms)
+    retrieval_p50, retrieval_n = _stage_stats(retrieval_ms)
+    llm_p50, llm_n = _stage_stats(llm_ms)
+    tool_p50, tool_n = _stage_stats(tool_ms)
     return {
         "n": len(rows),
         "refuse_accuracy": round(refuse_ok / refuse_n, 4) if refuse_n else None,
@@ -463,10 +474,14 @@ async def eval_e2e() -> dict:
             "p50": round(percentile(latencies, 50), 1),
             "p95": round(percentile(latencies, 95), 1),
             "mean": round(sum(latencies) / len(latencies), 1) if latencies else 0,
-            "intent_p50": round(percentile(intent_ms, 50), 1),
-            "retrieval_p50": round(percentile(retrieval_ms, 50), 1),
-            "llm_p50": round(percentile(llm_ms, 50), 1),
-            "tool_p50": round(percentile(tool_ms, 50), 1),
+            "intent_p50": intent_p50,
+            "retrieval_p50": retrieval_p50,
+            "llm_p50": llm_p50,
+            "tool_p50": tool_p50,
+            "intent_n": intent_n,
+            "retrieval_n": retrieval_n,
+            "llm_n": llm_n,
+            "tool_n": tool_n,
         },
         "cases": details,
     }

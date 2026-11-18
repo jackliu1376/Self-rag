@@ -43,7 +43,11 @@ class ChatRequest(BaseModel):
 
 硬依赖：**数据库**。Redis / Qdrant / LLM key 写入 `dependencies[]`，失败**不**把 ready 打成 false（避免 DeepSeek 抖动踢光探针）。给 **readiness**。
 
-实现：`app/api/routes/health.py`。`DeepSeekProvider.ping()` 只检查 key 是否配置，不发 `chat/completions`。
+实现：`app/api/routes/health.py`。`DeepSeekProvider.ping()` 只检查 key 是否配置，不发 `chat/completions`。`llm` 的 `detail` 会写明实际模式：`configured:<model>` 或 `offline:no_api_key`。
+
+### `GET /api/v1/capabilities`
+
+返回启动后实际选中的后端：`database / cache / vector_store / retriever / reranker / llm`，模型标识 `llm_model / embedding_model / reranker_model`，以及 `degraded` 与 `degraded_reasons[]`（如 `embedding: hash fallback`、`reranker: lexical fallback`）。内存向量库/缓存是单机默认值，只有配置了 Qdrant/Redis 但连不上时才记为降级。上游返回 `usage.quota` 时还会带 `llm_quota_used_percent / llm_quota_reset_at`（percent 为已用比例，未返回则为 null）。前端顶栏用它显示当前模型、剩余额度与降级状态。
 
 ## 对话
 

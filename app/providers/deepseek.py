@@ -17,6 +17,25 @@ from app.schemas.common import TokenUsage
 logger = logging.getLogger(__name__)
 
 
+def _parse_quota(raw: object) -> dict[str, int | None] | None:
+    """Upstream usage.quota: percent is the used share of the current window."""
+    if not isinstance(raw, dict):
+        return None
+    used_raw = raw.get("percent")
+    if not isinstance(used_raw, int | float | str):
+        return None
+    try:
+        used_percent = int(used_raw)
+    except ValueError:
+        return None
+    reset_raw = raw.get("reset_at")
+    try:
+        reset_at = int(reset_raw) if isinstance(reset_raw, int | float | str) else None
+    except ValueError:
+        reset_at = None
+    return {"used_percent": used_percent, "reset_at": reset_at}
+
+
 class DeepSeekProvider:
     """OpenAI-compatible DeepSeek chat completions client.
 
@@ -26,6 +45,7 @@ class DeepSeekProvider:
 
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
         self._settings = settings
+        self._quota: dict[str, int | None] | None = None
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
             base_url=settings.deepseek_base_url.rstrip("/"),
@@ -36,6 +56,10 @@ class DeepSeekProvider:
                 pool=5.0,
             ),
         )
+
+    @property
+    def quota(self) -> dict[str, int | None] | None:
+        return self._quota
 
     async def aclose(self) -> None:
         if self._owns_client:
@@ -65,6 +89,8 @@ class DeepSeekProvider:
         }
         if response_format is not None:
             payload["response_format"] = response_format
+            # Reasoning models spend max_tokens on thinking and never emit the JSON.
+            payload["reasoning_effort"] = "none"
 
         async def _call() -> LLMResponse:
             try:
@@ -96,6 +122,9 @@ class DeepSeekProvider:
             except (KeyError, IndexError, TypeError) as exc:
                 raise LLMProviderError("DeepSeek response missing choices") from exc
             usage_raw = body.get("usage") or {}
+            quota = _parse_quota(usage_raw.get("quota"))
+            if quota is not None:
+                self._quota = quota
             usage = TokenUsage(
                 prompt_tokens=int(usage_raw.get("prompt_tokens") or 0),
                 completion_tokens=int(usage_raw.get("completion_tokens") or 0),
@@ -132,6 +161,8 @@ class DeepSeekProvider:
         }
         if response_format is not None:
             payload["response_format"] = response_format
+            # Reasoning models spend max_tokens on thinking and never emit the JSON.
+            payload["reasoning_effort"] = "none"
 
         try:
             async with self._client.stream(

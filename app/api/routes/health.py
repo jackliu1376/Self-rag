@@ -39,7 +39,11 @@ async def readiness(
         DependencyStatus(
             name="llm",
             ready=llm_ok,
-            detail="configured" if llm_ok else "missing_api_key_using_fake",
+            detail=(
+                f"configured:{container.settings.deepseek_model}"
+                if container.settings.llm_configured
+                else "offline:no_api_key"
+            ),
         )
     )
     if container.redis is not None:
@@ -79,25 +83,48 @@ async def capabilities(
     reranker_provider = getattr(container.chat_service, "_reranker", None)
     provider = getattr(reranker_provider, "_provider", None)
     reranker = getattr(provider, "backend", "unknown")
-    llm = "deepseek" if container.settings.llm_configured else "offline"
+    settings = container.settings
+    quota = getattr(container.llm, "quota", None) or {}
+    llm = "deepseek" if settings.llm_configured else "offline"
+    llm_model = settings.deepseek_model if settings.llm_configured else "offline"
+    vector = getattr(container.retriever, "_vector", None)
+    embedder = getattr(vector, "embedder", None)
+    embedding_model = getattr(embedder, "backend", "unknown")
+    reranker_model = settings.cross_encoder_model if reranker == "cross-encoder" else "lexical"
     cache = "redis" if container.redis is not None else "memory"
     vector_store_type = type(container.vector_store).__name__ if container.vector_store else "none"
     vector_store = "memory" if vector_store_type == "InMemoryVectorStore" else vector_store_type
     retriever = (
-        "hybrid"
-        if container.settings.embedding_configured or container.settings.local_embedding_configured
-        else "bm25"
+        "hybrid" if settings.embedding_configured or settings.local_embedding_configured else "bm25"
     )
-    degraded = any(
-        value in {"offline", "memory", "none", "lexical", "bm25"}
-        for value in (llm, cache, vector_store, reranker, retriever)
-    )
+    reasons: list[str] = []
+    if llm == "offline":
+        reasons.append("llm: offline (no api key)")
+    if embedding_model == "hash":
+        reasons.append("embedding: hash fallback (no semantic recall)")
+    if reranker == "lexical":
+        error = getattr(provider, "load_error", None)
+        reasons.append(
+            f"reranker: lexical fallback ({error[:120]})" if error else "reranker: lexical fallback"
+        )
+    if retriever == "bm25":
+        reasons.append("retriever: bm25 only")
+    if vector_store == "memory" and settings.qdrant_configured:
+        reasons.append("vector_store: in-memory (qdrant unavailable)")
+    if cache == "memory" and settings.redis_configured:
+        reasons.append("cache: in-memory (redis unavailable)")
     return CapabilitiesResponse(
-        database="sqlite" if container.settings.use_sqlite else "postgresql",
+        database="sqlite" if settings.use_sqlite else "postgresql",
         cache=cache,
         vector_store=vector_store,
         retriever=retriever,
         reranker=reranker,
         llm=llm,
-        degraded=degraded,
+        llm_model=llm_model,
+        embedding_model=embedding_model,
+        reranker_model=reranker_model,
+        llm_quota_used_percent=quota.get("used_percent"),
+        llm_quota_reset_at=quota.get("reset_at"),
+        degraded=bool(reasons),
+        degraded_reasons=reasons,
     )
