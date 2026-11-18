@@ -66,6 +66,7 @@ async def test_cross_encoder_uses_injected_model() -> None:
 
 
 def test_cross_encoder_prefers_cached_weights(monkeypatch) -> None:
+    pytest.importorskip("sentence_transformers")
     calls: list[dict] = []
 
     class _CachedCrossEncoder:
@@ -79,6 +80,7 @@ def test_cross_encoder_prefers_cached_weights(monkeypatch) -> None:
 
 
 def test_cross_encoder_fetches_when_cache_is_missing(monkeypatch) -> None:
+    pytest.importorskip("sentence_transformers")
     calls: list[dict] = []
 
     class _MissingThenFetchCrossEncoder:

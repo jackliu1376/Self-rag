@@ -44,6 +44,7 @@ async def test_injected_bge_m3_encodes() -> None:
 
 
 def test_local_embedding_prefers_cached_weights(monkeypatch) -> None:
+    pytest.importorskip("sentence_transformers")
     calls: list[dict] = []
 
     class _CachedSentenceTransformer:
@@ -62,6 +63,7 @@ def test_local_embedding_prefers_cached_weights(monkeypatch) -> None:
 
 
 def test_local_embedding_fetches_when_cache_is_missing(monkeypatch) -> None:
+    pytest.importorskip("sentence_transformers")
     calls: list[dict] = []
 
     class _MissingThenFetchSentenceTransformer:
