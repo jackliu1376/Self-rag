@@ -1,4 +1,4 @@
-"""Interactive terminal chat client for the Adaptive-RAG API.
+"""Interactive terminal chat client for the Self-RAG API.
 
 The CLI is split into three focused modules:
 
@@ -6,7 +6,7 @@ The CLI is split into three focused modules:
 - :mod:`app.cli.client`  — the stateful REPL client (HTTP or in-process)
 - :mod:`app.cli.commands` — argument parsing and the ``main`` entry point
 
-Run it with ``python -m app.cli`` or the ``adaptive-rag-cli`` script.
+Run it with ``python -m app.cli`` or the ``self-rag-cli`` script.
 """
 
 from app.cli.client import ChatCli, ChatFailed

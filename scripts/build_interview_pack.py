@@ -34,9 +34,9 @@ OUT_PDF = ROOT / "output" / "pdf" / "面试问答全集.pdf"
 TMP_PNG = ROOT / "tmp" / "pdfs"
 
 
-COVER = """# Adaptive-RAG 电商客服面试问答全集
+COVER = """# Self-RAG 电商客服面试问答全集
 
-> 对照仓库 Adaptive-RAG。每个问题先给 30 秒开口，再给对照代码的详细答案。
+> 对照仓库 Self-RAG。每个问题先给 30 秒开口，再给对照代码的详细答案。
 > 评测数字以 eval/MEASURED.md 为准（2026-08-22，DeepSeek deepseek-chat + bge-small-zh-v1.5 + bge-reranker-base）。
 > 行为只写仓库里真实存在的；没做的会标明。
 
@@ -53,7 +53,7 @@ COVER = """# Adaptive-RAG 电商客服面试问答全集
 ## 全书结构
 
 - 第一篇  LangGraph 状态机、规划执行、意图与 97%
-- 第二篇  Adaptive-RAG、切分索引、改写、Hybrid 与多跳
+- 第二篇  Self-RAG、切分索引、改写、Hybrid 与多跳
 - 第三篇  检索优化口径、记忆压缩、Skill/MCP 与护栏
 """
 
@@ -423,7 +423,7 @@ def add_page_decor(canvas, doc):
     canvas.rect(0, A4[1] - 8 * mm, A4[0], 8 * mm, fill=1, stroke=0)
     canvas.setFillColor(colors.white)
     canvas.setFont("STSong-Light", 8)
-    canvas.drawString(18 * mm, A4[1] - 5.5 * mm, "Adaptive-RAG 面试问答全集")
+    canvas.drawString(18 * mm, A4[1] - 5.5 * mm, "Self-RAG 面试问答全集")
     canvas.drawRightString(A4[0] - 18 * mm, A4[1] - 5.5 * mm, "对照仓库 · 勿背简历未落地能力")
     canvas.setFillColor(colors.HexColor("#F4F7F8"))
     canvas.rect(0, 0, A4[0], 12 * mm, fill=1, stroke=0)
@@ -444,8 +444,8 @@ def build_pdf(md: str) -> None:
         rightMargin=16 * mm,
         topMargin=18 * mm,
         bottomMargin=16 * mm,
-        title="Adaptive-RAG 面试问答全集",
-        author="Adaptive-RAG",
+        title="Self-RAG 面试问答全集",
+        author="Self-RAG",
     )
     story = parse_md(md, styles)
     doc.build(story, onFirstPage=add_page_decor, onLaterPages=add_page_decor)

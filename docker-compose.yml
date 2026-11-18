@@ -1,7 +1,7 @@
 services:
   api:
     build: .
-    container_name: adaptive-rag
+    container_name: self-rag
     ports:
       - "8000:8000"
     environment:
@@ -15,7 +15,7 @@ services:
       CROSS_ENCODER_ENABLED: "false"
       UNSTRUCTURED_ENABLED: "false"
     volumes:
-      - adaptive-rag-data:/app/data
+      - self-rag-data:/app/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health')"]
       interval: 10s
@@ -23,4 +23,4 @@ services:
       retries: 10
 
 volumes:
-  adaptive-rag-data:
+  self-rag-data:

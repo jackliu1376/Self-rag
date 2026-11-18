@@ -4,9 +4,9 @@ services:
     environment:
       POSTGRES_USER: cs
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD before starting}
-      POSTGRES_DB: adaptive_rag_cs
+      POSTGRES_DB: self_rag_cs
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U cs -d adaptive_rag_cs"]
+      test: ["CMD-SHELL", "pg_isready -U cs -d self_rag_cs"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -37,7 +37,7 @@ services:
       args:
         INSTALL_RERANK: "true"
     environment: &api-environment
-      DATABASE_URL: postgresql+asyncpg://cs:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD before starting}@postgres:5432/adaptive_rag_cs
+      DATABASE_URL: postgresql+asyncpg://cs:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD before starting}@postgres:5432/self_rag_cs
       REDIS_URL: redis://redis:6379/0
       QDRANT_URL: http://qdrant:6333
       APP_ENV: production

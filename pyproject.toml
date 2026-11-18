@@ -1,7 +1,7 @@
 [project]
-name = "adaptive-rag-cs"
+name = "self-rag-cs"
 version = "0.1.0"
-description = "Adaptive-RAG multi-agent e-commerce customer service"
+description = "Self-RAG multi-agent e-commerce customer service"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -46,7 +46,7 @@ docs = [
 ]
 
 [project.scripts]
-adaptive-rag-cli = "app.cli:main"
+self-rag-cli = "app.cli:main"
 
 [build-system]
 requires = ["setuptools>=75"]

@@ -59,7 +59,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         clear_settings_cache()
     resolved = settings or get_settings()
     app = FastAPI(
-        title="Adaptive-RAG Customer Service",
+        title="Self-RAG Customer Service",
         version="0.1.0",
         lifespan=lifespan,
     )

@@ -187,7 +187,7 @@ class ChatCli:
     async def loop(self) -> None:
         """Run the read-eval-print loop until the user quits."""
         banner = await self.setup()
-        print(f"Adaptive-RAG  user={self._user_id}")
+        print(f"Self-RAG  user={self._user_id}")
         print(banner)
         print("输入问题后回车即可继续问。/help 看命令。\n")
         while True:

@@ -1,8 +1,8 @@
 
 
-<h1 align="center">Adaptive RAG · 电商客服工作流</h1>
+<h1 align="center">Self-RAG · 电商客服工作流</h1>
 
-<p align="center"><strong>针对基于 FAQ 的传统客服系统长尾问题命中率极低，人工介入成本高的问题和常规 RAG 多跳推理能力差，幻觉问题严重的痛点设计并实现了基于 Adaptive-RAG 的多智能体电商客服系统。</strong></p>
+<p align="center"><strong>针对基于 FAQ 的传统客服系统长尾问题命中率极低，人工介入成本高的问题和常规 RAG 多跳推理能力差，幻觉问题严重的痛点设计并实现了基于 Self-RAG 的多智能体电商客服系统。</strong></p>
 <p align="center">FastAPI × LangGraph × 混合检索 · API、流式对话与 ChatGPT 风格 Web 工作台</p>
 
 <p align="center">
@@ -15,7 +15,7 @@
 ---
 ## 📷 项目快照
 <p align="center">
-  <img src="docs/assets/frontend-snapshot.webp" alt="Adaptive RAG Web 工作台：多条件退货提问，回答附带三条政策来源引用" width="900">
+  <img src="docs/assets/frontend-snapshot.webp" alt="Self-RAG Web 工作台：多条件退货提问，回答附带三条政策来源引用" width="900">
 </p>
 
 <p align="center"><sub>Web 工作台：多条件退货提问，回答附带 <code>return_policy</code> 与 <code>return_electronics</code> 三条来源引用</sub></p>
@@ -48,7 +48,7 @@
 
 ## ✨ 一眼看懂
 
-> **Adaptive RAG** 的核心决策是：这个问题需要直接回答、检索一条证据、交叉核对多条证据、调用业务工具，还是拒绝处理？
+> **Self-RAG** 的核心决策是：这个问题需要直接回答、检索一条证据、交叉核对多条证据、调用业务工具，还是拒绝处理？
 
 电商客服里的问题跨度很大。「你好」无需查知识库；退货政策需要可靠出处；「定制商品超过七天但有质量问题」要同时判断定制、时效与质量例外；取消订单则必须检查订单状态、权限与确认。项目用明确的路由策略处理这些差异，避免把所有输入都塞进同一条向量检索链路。
 
@@ -244,7 +244,7 @@ cd frontend && npm test && npm run build
 | 目标 | 推荐入口 |
 |:---|:---|
 | 跑通 API、CLI、Web 与 Docker | [快速开始](docs/02-getting-started.md) · [部署](docs/11-deployment.md) |
-| 理解分层、Graph 与路由 | [架构](docs/03-architecture.md) · [Adaptive RAG](docs/04-adaptive-rag.md) |
+| 理解分层、Graph 与路由 | [架构](docs/03-architecture.md) · [Self-RAG](docs/04-adaptive-rag.md) |
 | 看检索、精排、工具与 HITL | [解析与检索](docs/15-ingest-and-retrieval.md) · [智能体与工具](docs/05-agents-and-tools.md) |
 | 查接口、配置、安全与可靠性 | [API](docs/06-api-reference.md) · [配置](docs/07-configuration.md) · [安全](docs/09-security.md) · [可靠性](docs/08-reliability.md) |
 | 核对实验口径与数字 | [评测方法](docs/10-evaluation.md) · [原始数字说明](eval/MEASURED.md) |

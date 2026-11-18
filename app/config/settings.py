@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     )
 
     app_env: Literal["development", "testing", "production"] = "development"
-    app_name: str = "adaptive-rag-cs"
+    app_name: str = "self-rag-cs"
     log_level: str = "INFO"
     api_v1_prefix: str = "/api/v1"
 

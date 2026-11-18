@@ -11,7 +11,7 @@ from app.cli.client import DEFAULT_BASE, DEFAULT_USER, ChatCli
 def build_parser() -> argparse.ArgumentParser:
     """Build the argument parser for the CLI entry point."""
     parser = argparse.ArgumentParser(
-        prog="adaptive-rag-cli", description="Adaptive-RAG 终端连续对话"
+        prog="self-rag-cli", description="Self-RAG 终端连续对话"
     )
     parser.add_argument("--base-url", default=DEFAULT_BASE, help="已有 API 地址")
     parser.add_argument("--user-id", default=DEFAULT_USER)
