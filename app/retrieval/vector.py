@@ -87,6 +87,13 @@ class QdrantVectorStore:
                 vectors_config=VectorParams(size=self._dim, distance=Distance.COSINE),
             )
 
+    def reset(self) -> None:
+        client = self._ensure_client()
+        names = [item.name for item in client.get_collections().collections]
+        if self._collection in names:
+            client.delete_collection(self._collection)
+        self.ensure_collection()
+
     def upsert(self, records: list[VectorRecord]) -> None:
         from qdrant_client.models import PointStruct
 

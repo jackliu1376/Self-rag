@@ -84,15 +84,15 @@ docker compose -f docker-compose.multi.yml -f docker-compose.observability.yml u
 - [ ] 在可信网关认证用户并绑定 `user_id`；当前请求体仍可伪造身份，不可直接对公网开放
 - [ ] liveness / readiness 分开（见 [08](08-reliability.md#探活)）
 - [ ] 密钥不在日志、镜像、README
-- [ ] 长期 Postgres 用 Alembic（现在启动仍 `create_all`）
+- [ ] 长期 Postgres 设 `RUN_MIGRATIONS=true`，启动时跑 Alembic（默认 SQLite 仍 `create_all`）
 
 ## 扩容、知识库、回滚
 
 API 无粘滞：session 在 DB。进程内限流多副本不共享 → 生产配 Redis。Graph 每进程编译一次。
 
-改 `knowledge/` 文档后重启 API。`chunk_id` 在同一切分结果下稳定，Qdrant upsert 覆盖。无 CMS。生产 ingest 走 Unstructured；系统包需要 poppler、tesseract（`chi_sim`）、处理 Office 时的 libreoffice。换解析器后重跑 `--task retrieval`。
+改 `knowledge/` 文档后调用 `POST /api/v1/admin/knowledge/reload` 热重建索引，无需重启；也可用 `PUT/DELETE /api/v1/admin/knowledge/documents/{path}` 维护单篇 Markdown。`chunk_id` 在同一切分结果下稳定，Qdrant 重载会重建 collection 以清掉已删除文档。生产 ingest 走 Unstructured；系统包需要 poppler、tesseract（`chi_sim`）、处理 Office 时的 libreoffice。换解析器后重跑 `--task retrieval`。
 
-应用无状态（除 DB）。回滚镜像即可。Alembic `0002` 退货表，schema 回滚需显式 `downgrade`。
+应用无状态（除 DB）。回滚镜像即可。Alembic 已到 `0003`（退货表、待确认动作表），schema 回滚需显式 `downgrade`。
 
 ---
 

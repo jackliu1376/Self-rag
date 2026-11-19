@@ -34,6 +34,14 @@ class HybridRetriever:
         self._rrf_k = rrf_k
         self._cache = cache
 
+    def replace_index(self, bm25: BM25Retriever, vector: VectorRetriever) -> None:
+        self._bm25 = bm25
+        self._vector = vector
+
+    async def invalidate_cache(self) -> None:
+        if self._cache is not None:
+            await self._cache.clear()
+
     async def retrieve(self, query: str, *, top_k: int) -> list[RetrievedChunk]:
         if self._cache is not None:
             cached = await self._cache.get(query, top_k)

@@ -70,6 +70,7 @@ class Settings(BaseSettings):
     db_max_overflow: int = 10
     db_pool_timeout: int = 30
     admin_api_token: SecretStr = SecretStr("")
+    run_migrations: bool = False
     knowledge_dir: str = "knowledge"
     unstructured_enabled: bool = True
     unstructured_strategy: str = "auto"

@@ -121,6 +121,7 @@ async def ingest_knowledge(
     qdrant_url: str = "",
     qdrant_collection: str = "cs_knowledge",
     embedding_dim: int = 512,
+    reset_qdrant: bool = False,
 ) -> tuple[BM25Retriever, InMemoryVectorStore | QdrantVectorStore, list[RetrievedChunk]]:
     """Prefer Qdrant when configured; fall back to memory if Qdrant is down."""
     logger = logging.getLogger(__name__)
@@ -131,7 +132,10 @@ async def ingest_knowledge(
     if qdrant_url:
         store = QdrantVectorStore(qdrant_url, qdrant_collection, embedding_dim)
         try:
-            await asyncio.to_thread(store.ensure_collection)
+            if reset_qdrant:
+                await asyncio.to_thread(store.reset)
+            else:
+                await asyncio.to_thread(store.ensure_collection)
             await asyncio.to_thread(store.upsert, records)
             return bm25, store, chunks
         except Exception:

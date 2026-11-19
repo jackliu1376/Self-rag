@@ -32,6 +32,9 @@ class RetrievalCache:
     async def set(self, query: str, top_k: int, chunks: list[RetrievedChunk]) -> None:
         return None
 
+    async def clear(self) -> None:
+        return None
+
 
 class MemoryRetrievalCache(RetrievalCache):
     def __init__(self, *, ttl_seconds: int) -> None:
@@ -54,6 +57,9 @@ class MemoryRetrievalCache(RetrievalCache):
         if _looks_like_order_query(query):
             return
         self._store[cache_key(query, top_k)] = (time.monotonic() + self._ttl, chunks)
+
+    async def clear(self) -> None:
+        self._store.clear()
 
 
 class RedisRetrievalCache(RetrievalCache):
@@ -85,3 +91,11 @@ class RedisRetrievalCache(RetrievalCache):
             )
         except Exception:
             logger.warning("retrieval_cache_redis_set_failed")
+
+    async def clear(self) -> None:
+        try:
+            keys = [key async for key in self._redis.scan_iter("ret:*")]
+            if keys:
+                await self._redis.delete(*keys)
+        except Exception:
+            logger.warning("retrieval_cache_redis_clear_failed")

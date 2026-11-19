@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import time
+from pathlib import Path
 
 from app.config.settings import Settings
 from app.infra.rate_limit import InMemoryRateLimiter, RedisRateLimiter
@@ -15,10 +18,12 @@ from app.providers.embeddings import build_embedding_provider
 from app.providers.fake import OfflineLLMProvider
 from app.providers.reranker import CrossEncoderRerankProvider
 from app.repositories.db import create_engine, create_session_factory, init_schema
+from app.repositories.migrations import run_migrations
 from app.retrieval.cache import MemoryRetrievalCache, RedisRetrievalCache
 from app.retrieval.hybrid import HybridRetriever
 from app.retrieval.ingest import ingest_knowledge
 from app.retrieval.reranker import DocumentReranker
+from app.retrieval.unstructured_parser import list_knowledge_files
 from app.retrieval.vector import VectorRetriever
 from app.services.chat_service import ChatService
 from app.services.seed import seed_demo_data
@@ -36,6 +41,7 @@ class AppContainer:
         engine,
         session_factory,
         retriever: HybridRetriever,
+        embedder,
         redis=None,
         vector_store=None,
     ) -> None:
@@ -45,8 +51,32 @@ class AppContainer:
         self.engine = engine
         self.session_factory = session_factory
         self.retriever = retriever
+        self.embedder = embedder
         self.redis = redis
         self.vector_store = vector_store
+        self._knowledge_lock = asyncio.Lock()
+
+    async def reload_knowledge(self) -> dict:
+        """Re-ingest knowledge/ and swap the live index without restarting."""
+        async with self._knowledge_lock:
+            started = time.perf_counter()
+            bm25, store, chunks = await ingest_knowledge(
+                self.settings.knowledge_dir,
+                self.embedder,
+                settings=self.settings,
+                qdrant_url=self.settings.qdrant_url,
+                qdrant_collection=self.settings.qdrant_collection,
+                embedding_dim=getattr(self.embedder, "dim", self.settings.embedding_dim),
+                reset_qdrant=True,
+            )
+            self.retriever.replace_index(bm25, VectorRetriever(store, self.embedder))
+            await self.retriever.invalidate_cache()
+            self.vector_store = store
+            return {
+                "documents": len(list_knowledge_files(Path(self.settings.knowledge_dir))),
+                "chunks": len(chunks),
+                "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
+            }
 
     async def aclose(self) -> None:
         closer = getattr(self.llm, "aclose", None)
@@ -62,7 +92,10 @@ class AppContainer:
 async def build_infrastructure(settings: Settings):
     """Create the database session factory and optional Redis connection."""
     engine = create_engine(settings)
-    await init_schema(engine)
+    if settings.run_migrations:
+        await asyncio.to_thread(run_migrations, settings.database_url)
+    else:
+        await init_schema(engine)
     session_factory = create_session_factory(engine)
     redis = await connect_redis(settings)
     return engine, session_factory, redis
@@ -88,7 +121,7 @@ async def build_retrieval(settings: Settings, redis):
         bm25, VectorRetriever(store, embedder), rrf_k=settings.rrf_k, cache=cache
     )
     reranker = DocumentReranker(CrossEncoderRerankProvider(settings))
-    return retriever, reranker, store
+    return retriever, reranker, store, embedder
 
 
 async def build_container(settings: Settings, seed: bool = False) -> AppContainer:
@@ -102,7 +135,7 @@ async def build_container(settings: Settings, seed: bool = False) -> AppContaine
         if redis is not None
         else InMemoryRateLimiter(limit=settings.rate_limit_per_minute)
     )
-    retriever, reranker, store = await build_retrieval(settings, redis)
+    retriever, reranker, store, embedder = await build_retrieval(settings, redis)
     registry = build_tool_registry(retriever)
     if settings.mcp_enabled:
         specs = list(LOCAL_CATALOG)
@@ -145,6 +178,7 @@ async def build_container(settings: Settings, seed: bool = False) -> AppContaine
         engine=engine,
         session_factory=session_factory,
         retriever=retriever,
+        embedder=embedder,
         redis=redis,
         vector_store=store,
     )

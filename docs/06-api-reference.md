@@ -93,7 +93,7 @@ SSE。事件 JSON：
 
 ## 管理面
 
-`GET /api/v1/admin/tools`、`/admin/skills`。  
+`GET /api/v1/admin/tools`、`/admin/skills`。知识库维护：`POST /admin/knowledge/reload` 热重建索引；`PUT /admin/knowledge/documents/{path}` 写入并重载单篇文档；`DELETE /admin/knowledge/documents/{path}` 删除并重载。文档接口只接受 `knowledge/` 根目录下扁平的 `.md` 文件，写入后立即重建 BM25/向量索引并清空检索缓存。  
 `APP_ENV=production` 必须 `x-admin-token` 且配置 `ADMIN_API_TOKEN`。开发未配 token 则开放（勿对公网暴露）。比对：`hmac.compare_digest`。
 
 ## 指标
