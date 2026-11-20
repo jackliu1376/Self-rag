@@ -30,7 +30,15 @@ from eval.metrics import (
 
 ROOT = Path(__file__).resolve().parents[1]
 INTENT_PATH = ROOT / "eval/dataset/intent_100.jsonl"
+INTENT_HOLDOUT_PATH = ROOT / "eval/dataset/intent_holdout.jsonl"
 RAG_PATH = ROOT / "eval/dataset/rag_eval.jsonl"
+RAG_MULTIHOP_PATH = ROOT / "eval/dataset/rag_eval_multihop.jsonl"
+
+
+def _judge_model() -> str:
+    return os.environ.get("EVAL_JUDGE_MODEL", "").strip()
+
+
 E2E_PATH = ROOT / "eval/dataset/e2e_eval.jsonl"
 REPORT_DIR = ROOT / "eval/reports"
 
@@ -80,10 +88,10 @@ def _keyword_hit(answer: str, keywords: list[str]) -> bool:
     return all(word in answer for word in keywords)
 
 
-def eval_intent_rules() -> dict:
+def eval_intent_rules(dataset: Path = INTENT_PATH) -> dict:
     from app.agents.nodes.intent import rule_based_intent
 
-    rows = load_jsonl(INTENT_PATH)
+    rows = load_jsonl(dataset)
     pairs = [(row["intent"], rule_based_intent(row["query"]).label.value) for row in rows]
     return {
         "backend": "rules",
@@ -94,7 +102,7 @@ def eval_intent_rules() -> dict:
     }
 
 
-async def eval_intent_llm(*, version: str, overlay: bool) -> dict:
+async def eval_intent_llm(*, version: str, overlay: bool, dataset: Path = INTENT_PATH) -> dict:
     from app.agents.nodes.intent import IntentClassifier
     from app.config.settings import get_settings
     from app.prompts.intent import INTENT_SYSTEM, INTENT_SYSTEM_V1, INTENT_SYSTEM_V2
@@ -115,7 +123,7 @@ async def eval_intent_llm(*, version: str, overlay: bool) -> dict:
         prompt_version=version,
         apply_overlay=overlay,
     )
-    rows = load_jsonl(INTENT_PATH)
+    rows = load_jsonl(dataset)
     semaphore = asyncio.Semaphore(int(os.environ.get("EVAL_CONCURRENCY", "4")))
     errors = 0
 
@@ -147,10 +155,10 @@ async def eval_intent_llm(*, version: str, overlay: bool) -> dict:
     }
 
 
-def eval_intent_overlay() -> dict:
+def eval_intent_overlay(dataset: Path = INTENT_PATH) -> dict:
     from app.agents.nodes.intent_overlay import high_precision_intent
 
-    rows = load_jsonl(INTENT_PATH)
+    rows = load_jsonl(dataset)
     pairs = []
     uncovered = 0
     for row in rows:
@@ -170,7 +178,7 @@ def eval_intent_overlay() -> dict:
     }
 
 
-async def eval_retrieval() -> dict:
+async def eval_retrieval(dataset: Path = RAG_PATH) -> dict:
     from app.config.settings import get_settings
     from app.providers.embeddings import build_embedding_provider
     from app.providers.reranker import CrossEncoderRerankProvider, LexicalRerankProvider
@@ -187,16 +195,17 @@ async def eval_retrieval() -> dict:
     bm25, store, _ = await ingest_to_memory("knowledge", embedder)
     vector = VectorRetriever(store, embedder)
     hybrid = HybridRetriever(bm25, vector, rrf_k=60)
-    rows = load_jsonl(RAG_PATH)
+    rows = load_jsonl(dataset)
 
     async def _run(name: str, retrieve) -> dict:
-        precs1, recalls3, hits1, hits3, mrrs = [], [], [], [], []
+        precs1, recalls3, recalls5, hits1, hits3, mrrs = [], [], [], [], [], []
         for row in rows:
             chunks = await retrieve(row["query"])
             stems = _unique_stems(chunks)
             relevant = set(row["relevant_doc_ids"])
             precs1.append(precision_at_k(relevant, stems, 1))
             recalls3.append(recall_at_k(relevant, stems, 3))
+            recalls5.append(recall_at_k(relevant, stems, 5))
             hits1.append(hit_at_k(relevant, stems, 1))
             hits3.append(hit_at_k(relevant, stems, 3))
             mrrs.append(mrr(relevant, stems))
@@ -205,6 +214,7 @@ async def eval_retrieval() -> dict:
             "n": len(rows),
             "precision_at_1": _summarize_scores(precs1),
             "recall_at_3": _summarize_scores(recalls3),
+            "recall_at_5": _summarize_scores(recalls5),
             "hit_at_1": _summarize_scores(hits1),
             "hit_at_3": _summarize_scores(hits3),
             "mrr": _summarize_scores(mrrs),
@@ -267,31 +277,40 @@ async def eval_retrieval() -> dict:
 
 async def _generate_answer(llm, query: str, evidence: str) -> str:
     from app.agents.nodes.generate import AnswerPayload
+    from app.core.exceptions import LLMOutputError
     from app.prompts.answer import ANSWER_SYSTEM, ANSWER_USER
     from app.providers.json_parser import parse_model
 
-    response = await llm.generate(
-        [
-            {"role": "system", "content": ANSWER_SYSTEM},
-            {
-                "role": "user",
-                "content": ANSWER_USER.format(
-                    query=query,
-                    intent="faq_policy",
-                    strategy="single",
-                    evidence=evidence,
-                    tool_results="(无)",
-                ),
-            },
-        ],
-        temperature=0.0,
-        max_tokens=500,
-        response_format={"type": "json_object"},
-    )
-    return parse_model(response.content, AnswerPayload).answer
+    messages = [
+        {"role": "system", "content": ANSWER_SYSTEM},
+        {
+            "role": "user",
+            "content": ANSWER_USER.format(
+                query=query,
+                intent="faq_policy",
+                strategy="single",
+                evidence=evidence,
+                tool_results="(无)",
+            ),
+        },
+    ]
+    last_error: LLMOutputError | None = None
+    for _ in range(2):
+        try:
+            response = await llm.generate(
+                messages,
+                temperature=0.0,
+                max_tokens=500,
+                response_format={"type": "json_object"},
+            )
+            return parse_model(response.content, AnswerPayload).answer
+        except LLMOutputError as exc:
+            last_error = exc
+    assert last_error is not None
+    raise last_error
 
 
-async def eval_generation() -> dict:
+async def eval_generation(dataset: Path = RAG_PATH) -> dict:
     from app.config.settings import get_settings
     from app.guardrails.hallucination import FaithfulnessChecker
     from app.providers.deepseek import DeepSeekProvider
@@ -305,10 +324,17 @@ async def eval_generation() -> dict:
         raise SystemExit("DEEPSEEK_API_KEY missing")
     llm = DeepSeekProvider(settings)
     checker = FaithfulnessChecker(llm)
+    judge_model = _judge_model()
+    judge_llm = (
+        DeepSeekProvider(settings.model_copy(update={"deepseek_model": judge_model}))
+        if judge_model
+        else None
+    )
+    independent_checker = FaithfulnessChecker(judge_llm) if judge_llm is not None else None
     embedder = build_embedding_provider(settings)
     bm25, store, _ = await ingest_to_memory("knowledge", embedder)
     retriever = HybridRetriever(bm25, VectorRetriever(store, embedder), rrf_k=60)
-    rows = load_jsonl(RAG_PATH)
+    rows = load_jsonl(dataset)
     semaphore = asyncio.Semaphore(int(os.environ.get("EVAL_CONCURRENCY", "3")))
 
     naive_supported = 0
@@ -320,11 +346,21 @@ async def eval_generation() -> dict:
     naive_hallucinated = 0
     rag_hallucinated = 0
     checked_hallucinated = 0
+    indep_naive_supported = 0
+    indep_rag_supported = 0
+    indep_checked_supported = 0
+    indep_naive_hallucinated = 0
+    indep_rag_hallucinated = 0
+    indep_checked_hallucinated = 0
+    rag_judge_agreement = 0
 
     async def _one(row: dict) -> None:
         nonlocal naive_supported, rag_supported, checked_supported
         nonlocal naive_keyword, rag_keyword, checked_keyword
         nonlocal naive_hallucinated, rag_hallucinated, checked_hallucinated
+        nonlocal indep_naive_supported, indep_rag_supported, indep_checked_supported
+        nonlocal indep_naive_hallucinated, indep_rag_hallucinated, indep_checked_hallucinated
+        nonlocal rag_judge_agreement
         async with semaphore:
             chunks = await retriever.retrieve(row["query"], top_k=5)
             evidence = (
@@ -352,6 +388,30 @@ async def eval_generation() -> dict:
                     tool_results_text="",
                     first_result=rag_judge,
                 )
+            if independent_checker is not None:
+                indep_naive = await independent_checker.check(
+                    query=row["query"], answer=naive, chunks=chunks, tool_results_text=""
+                )
+                indep_rag = await independent_checker.check(
+                    query=row["query"], answer=rag, chunks=chunks, tool_results_text=""
+                )
+                indep_checked = await independent_checker.check(
+                    query=row["query"], answer=checked, chunks=chunks, tool_results_text=""
+                )
+                if indep_naive.supported:
+                    indep_naive_supported += 1
+                else:
+                    indep_naive_hallucinated += 1
+                if indep_rag.supported:
+                    indep_rag_supported += 1
+                else:
+                    indep_rag_hallucinated += 1
+                if indep_checked.supported:
+                    indep_checked_supported += 1
+                else:
+                    indep_checked_hallucinated += 1
+                if indep_rag.supported == rag_judge.supported:
+                    rag_judge_agreement += 1
             keywords = row.get("gold_answer_contains") or []
             if naive_judge.supported:
                 naive_supported += 1
@@ -372,12 +432,16 @@ async def eval_generation() -> dict:
             if _keyword_hit(checked, keywords):
                 checked_keyword += 1
 
-    await asyncio.gather(*[_one(row) for row in rows])
+    try:
+        await asyncio.gather(*[_one(row) for row in rows])
+    finally:
+        if judge_llm is not None:
+            await judge_llm.aclose()
     n = len(rows)
     naive_h = naive_hallucinated / n
     checked_h = checked_hallucinated / n
     drop = ((naive_h - checked_h) / naive_h) if naive_h else 0.0
-    return {
+    result = {
         "n": n,
         "judge": "deepseek-faithfulness_v1",
         "naive_no_context": {
@@ -398,6 +462,24 @@ async def eval_generation() -> dict:
         "hallucination_relative_drop": round(drop, 4),
         "note": "Hallucination = LLM judge supported=false. Relative drop is naive vs RAG+self-check.",
     }
+    if independent_checker is not None:
+        result["independent_judge"] = {
+            "model": judge_model,
+            "naive_no_context": {
+                "faithfulness": round(indep_naive_supported / n, 4),
+                "hallucination_rate": round(indep_naive_hallucinated / n, 4),
+            },
+            "rag": {
+                "faithfulness": round(indep_rag_supported / n, 4),
+                "hallucination_rate": round(indep_rag_hallucinated / n, 4),
+            },
+            "rag_plus_self_check": {
+                "faithfulness": round(indep_checked_supported / n, 4),
+                "hallucination_rate": round(indep_checked_hallucinated / n, 4),
+            },
+            "rag_agreement_with_same_model": round(rag_judge_agreement / n, 4),
+        }
+    return result
 
 
 async def eval_e2e() -> dict:
@@ -504,6 +586,9 @@ def _resume_bullets(report: dict) -> list[str]:
         if overlay:
             extra += f"；仅覆盖层 {overlay['accuracy']:.1%}"
         bullets.append(f"意图识别：{intent_v3['n']} 条 " + " → ".join(parts) + extra)
+    holdout = report.get("intent_holdout_v3")
+    if holdout:
+        bullets.append(f"意图留出集：{holdout['n']} 条 {holdout['accuracy']:.1%}")
     retrieval = report.get("retrieval")
     if retrieval:
         bm25 = next((s for s in retrieval["systems"] if s["backend"] == "bm25"), None)
@@ -539,6 +624,16 @@ def _resume_bullets(report: dict) -> list[str]:
                 f"Hybrid+Cross-Encoder Precision@1 {cross_encoder['precision_at_1']['mean']:.1%}，"
                 f"Recall@3 {cross_encoder['recall_at_3']['mean']:.1%}"
             )
+    multi = report.get("retrieval_multihop")
+    if multi:
+        ce_multi = next(
+            (s for s in multi["systems"] if s["backend"] == "hybrid+cross-encoder"), None
+        )
+        if ce_multi:
+            bullets.append(
+                f"多跳 {multi['n']} 条：Hybrid+CE P@1 {ce_multi['precision_at_1']['mean']:.1%}，"
+                f"R@5 {ce_multi['recall_at_5']['mean']:.1%}"
+            )
     gen = report.get("generation")
     if gen:
         naive = gen["naive_no_context"]
@@ -564,13 +659,20 @@ async def run_all(*, llm: bool) -> dict:
         "generated_at": datetime.now(UTC).isoformat(),
         "intent_rules": eval_intent_rules(),
         "intent_overlay": eval_intent_overlay(),
+        "intent_holdout_rules": eval_intent_rules(INTENT_HOLDOUT_PATH),
+        "intent_holdout_overlay": eval_intent_overlay(INTENT_HOLDOUT_PATH),
         "retrieval": await eval_retrieval(),
+        "retrieval_multihop": await eval_retrieval(RAG_MULTIHOP_PATH),
     }
     if llm:
         report["intent_v1"] = await eval_intent_llm(version="intent_v1", overlay=False)
         report["intent_v2"] = await eval_intent_llm(version="intent_v2", overlay=False)
         report["intent_v3"] = await eval_intent_llm(version="intent_v3", overlay=True)
+        report["intent_holdout_v3"] = await eval_intent_llm(
+            version="intent_v3", overlay=True, dataset=INTENT_HOLDOUT_PATH
+        )
         report["generation"] = await eval_generation()
+        report["generation_multihop"] = await eval_generation(RAG_MULTIHOP_PATH)
         report["e2e"] = await eval_e2e()
     report["resume_bullets"] = _resume_bullets(report)
     return report
@@ -580,7 +682,15 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--task",
-        choices=["all", "intent", "retrieval", "generation", "e2e"],
+        choices=[
+            "all",
+            "intent",
+            "intent_holdout",
+            "retrieval",
+            "generation",
+            "e2e",
+            "multihop",
+        ],
         default="all",
     )
     parser.add_argument("--llm", action="store_true")
@@ -600,10 +710,25 @@ def main() -> None:
                 result["intent_v3"] = await eval_intent_llm(version="intent_v3", overlay=True)
             result["resume_bullets"] = _resume_bullets(result)
             return result
+        if args.task == "intent_holdout":
+            holdout_result: dict[str, Any] = {
+                "intent_holdout_rules": eval_intent_rules(INTENT_HOLDOUT_PATH),
+                "intent_holdout_overlay": eval_intent_overlay(INTENT_HOLDOUT_PATH),
+            }
+            if args.llm:
+                holdout_result["intent_holdout_v3"] = await eval_intent_llm(
+                    version="intent_v3", overlay=True, dataset=INTENT_HOLDOUT_PATH
+                )
+            return holdout_result
         if args.task == "retrieval":
             return {"retrieval": await eval_retrieval()}
         if args.task == "generation":
             return {"generation": await eval_generation()}
+        if args.task == "multihop":
+            result = {"retrieval_multihop": await eval_retrieval(RAG_MULTIHOP_PATH)}
+            if args.llm:
+                result["generation_multihop"] = await eval_generation(RAG_MULTIHOP_PATH)
+            return result
         return {"e2e": await eval_e2e()}
 
     report = asyncio.run(_go())

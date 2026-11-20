@@ -1,0 +1,20 @@
+{"query": "定制马克杯印字后还能用 NEW10 吗，屏幕色差算质量问题吗", "relevant_doc_ids": ["return_custom", "coupons"], "gold_answer_contains": ["定制", "NEW10"]}
+{"query": "跨境购商品出现质量问题，退款多久能到账", "relevant_doc_ids": ["cross_border", "refund_timeline"], "gold_answer_contains": ["保税仓", "原路"]}
+{"query": "满 59 包邮，寄到新疆的偏远附加费能用包邮券抵吗", "relevant_doc_ids": ["shipping", "shipping_remote", "coupons"], "gold_answer_contains": ["59", "8"]}
+{"query": "PLUS 运费券和 NEW10 能一起用吗，偏远地区呢", "relevant_doc_ids": ["membership_plus", "promo_stacking", "shipping_remote"], "gold_answer_contains": ["NEW10", "PLUS"]}
+{"query": "秒杀商品能用 NEW10 或 SHOP50 吗，包邮券可以吗", "relevant_doc_ids": ["promo_stacking", "coupons"], "gold_answer_contains": ["秒杀", "SHIP0"]}
+{"query": "积分能抵运费吗，退款后已发放的积分会怎样", "relevant_doc_ids": ["coupons", "points_expiry"], "gold_answer_contains": ["积分", "冻结"]}
+{"query": "秒杀价商品能申请价保吗，补差多久到账", "relevant_doc_ids": ["price_protect", "promo_stacking"], "gold_answer_contains": ["秒杀", "24"]}
+{"query": "花呗分期后退款，已收的息费退吗，多久到账", "relevant_doc_ids": ["installment_huabei", "refund_timeline"], "gold_answer_contains": ["花呗", "息费"]}
+{"query": "衣服洗过了还能退吗，尺码误差多少算质量问题", "relevant_doc_ids": ["return_apparel", "exchange_size"], "gold_answer_contains": ["洗涤", "1.5"]}
+{"query": "定制商品下单后多久能改文案，改不了还能退吗", "relevant_doc_ids": ["return_custom", "return_policy"], "gold_answer_contains": ["2 小时", "7 天"]}
+{"query": "数码产品激活后还能 7 天无理由吗，超过 15 天怎么办", "relevant_doc_ids": ["return_electronics", "warranty"], "gold_answer_contains": ["激活", "保修"]}
+{"query": "电池鼓包保修吗，超过 6 个月还能退吗", "relevant_doc_ids": ["warranty_battery", "warranty"], "gold_answer_contains": ["鼓包", "6 个月"]}
+{"query": "珠宝戒指改围后还能无理由退吗，保修多久", "relevant_doc_ids": ["return_policy", "warranty_jewelry"], "gold_answer_contains": ["改围", "30 天"]}
+{"query": "生鲜拆封后发现变质能退吗，除了退款还有什么赔付", "relevant_doc_ids": ["return_food", "refund_timeline"], "gold_answer_contains": ["变质", "FRESH20"]}
+{"query": "预售定金付了尾款后能退吗，退款多久到账", "relevant_doc_ids": ["live_presale", "refund_timeline"], "gold_answer_contains": ["定金", "原路"]}
+{"query": "礼品卡能开专票吗，能和优惠券叠加吗", "relevant_doc_ids": ["gift_card", "invoice_vat"], "gold_answer_contains": ["专票", "叠加"]}
+{"query": "拆单后只收到一部分，能整单取消吗，催发找谁", "relevant_doc_ids": ["shipping_split", "logistics_exception"], "gold_answer_contains": ["拆单", "子单"]}
+{"query": "无理由退货选上门取件要多少钱，质量问题也收费吗", "relevant_doc_ids": ["pickup_return", "return_policy"], "gold_answer_contains": ["12", "质量"]}
+{"query": "增值税专票能开优惠券抵扣和运费吗，需要什么信息", "relevant_doc_ids": ["invoice_vat", "coupons"], "gold_answer_contains": ["专票", "优惠券"]}
+{"query": "直播价买的商品能价保吗，LIVE15 过期还能用吗", "relevant_doc_ids": ["price_protect", "live_presale"], "gold_answer_contains": ["价保", "LIVE15"]}
