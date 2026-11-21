@@ -103,6 +103,8 @@ class Settings(BaseSettings):
 | `RATE_LIMIT_PER_MINUTE` | 60 | 按 `user_id` |
 | `RETRIEVAL_CACHE_TTL_SECONDS` | 60 | 政策问 |
 | `ADMIN_API_TOKEN` | 空 | 生产必填才能开 admin |
+| `AUTH_MODE` | `body` | `body` 信任请求体 `user_id`；`trusted_header` 只信任网关注入的 `X-User-Id`，缺失返回 401 |
+| `ALLOW_GENERAL_CHAT` | false | 开放域聊天开关。true 时非危险的 `out_of_scope` 问题走 DIRECT；违法/危险话题仍拒答，医疗问题只建议就医 |
 | `KNOWLEDGE_DIR` | `knowledge` | 支持 `.md` `.pdf` `.docx` `.pptx` `.html` 与常见图片后缀 |
 
 完整模板：仓库根目录 `.env.example`。

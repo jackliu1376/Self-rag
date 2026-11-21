@@ -157,7 +157,7 @@ class ChatService:
         trace_id: str,
     ) -> AgentState:
         sessions = SessionRepository(db)
-        await sessions.get_or_create(session_id, request.user_id)
+        session_row = await sessions.get_or_create(session_id, request.user_id)
         confirmed_action = await self._resolve_confirmation(db, request, session_id)
         history = await sessions.recent_messages(session_id)
         return {
@@ -166,7 +166,7 @@ class ChatService:
             "user_id": request.user_id,
             "user_query": request.message,
             "messages": history,
-            "summary": "",
+            "summary": session_row.summary,
             "retrieved_chunks": [],
             "tool_results": [],
             "citations": [],

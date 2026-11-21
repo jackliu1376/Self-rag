@@ -37,6 +37,19 @@ async def test_session_is_readable_by_its_owner(session_factory) -> None:
 
 
 @pytest.mark.asyncio
+async def test_summary_is_readable_on_the_next_turn(session_factory) -> None:
+    async with session_factory() as db:
+        repo = SessionRepository(db)
+        await repo.get_or_create("sess_summary", "u_a")
+        await repo.save_summary("sess_summary", "用户咨询定制杯退货")
+        await db.commit()
+
+    async with session_factory() as db:
+        row = await SessionRepository(db).get_or_create("sess_summary", "u_a")
+        assert row.summary == "用户咨询定制杯退货"
+
+
+@pytest.mark.asyncio
 async def test_session_cannot_be_opened_by_another_user(session_factory) -> None:
     async with session_factory() as db:
         await SessionRepository(db).get_or_create("sess_owner", "u_a")

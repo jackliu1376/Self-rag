@@ -70,7 +70,9 @@ class Settings(BaseSettings):
     db_max_overflow: int = 10
     db_pool_timeout: int = 30
     admin_api_token: SecretStr = SecretStr("")
+    auth_mode: Literal["body", "trusted_header"] = "body"
     run_migrations: bool = False
+    allow_general_chat: bool = False
     knowledge_dir: str = "knowledge"
     unstructured_enabled: bool = True
     unstructured_strategy: str = "auto"

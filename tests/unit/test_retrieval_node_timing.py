@@ -5,6 +5,7 @@ import pytest
 from app.agents.nodes.retrieval import retrieval_node
 from app.config.settings import Settings
 from app.core.enums import RetrievalStrategy
+from app.schemas.chat import ChatMessage
 from app.schemas.common import LatencyBreakdown
 from app.schemas.retrieval import RetrievedChunk
 
@@ -55,6 +56,35 @@ async def test_single_hop_records_rerank_time() -> None:
         settings=Settings(app_env="testing"),
     )
     assert result["latency"].rerank_ms > 0
+
+
+class _RecordingRetriever:
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
+    async def retrieve(self, query, *, top_k):
+        self.queries.append(query)
+        return []
+
+
+@pytest.mark.asyncio
+async def test_short_follow_up_retrieves_with_previous_turn() -> None:
+    retriever = _RecordingRetriever()
+    await retrieval_node(
+        {
+            "user_query": "那还能退吗？",
+            "messages": [ChatMessage(role="user", content="定制马克杯裂纹")],
+            "strategy": RetrievalStrategy.SINGLE,
+            "latency": LatencyBreakdown(),
+        },
+        retriever=retriever,
+        reranker=_Reranker(),
+        rewriter=_Rewriter(),
+        self_rag=_SelfRAG(),
+        settings=Settings(app_env="testing"),
+    )
+    assert retriever.queries
+    assert "定制马克杯裂纹" in retriever.queries[0]
 
 
 @pytest.mark.asyncio

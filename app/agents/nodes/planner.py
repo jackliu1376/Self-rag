@@ -7,6 +7,7 @@ import re
 from app.agents.state import AgentState
 from app.core.exceptions import LLMOutputError, LLMProviderError
 from app.core.ids import new_id
+from app.memory.context import format_memory_context
 from app.prompts.planner import PLANNER_SYSTEM, PLANNER_USER
 from app.providers.base import LLMProvider
 from app.providers.fake import OfflineLLMProvider
@@ -187,7 +188,9 @@ async def planner_node(state: AgentState, planner: Planner) -> dict:
     plan = await planner.create_plan(
         state["user_query"],
         intent.label.value if intent else "faq_policy",
-        state.get("summary") or "",
+        format_memory_context(
+            state.get("messages") or [], state.get("summary") or "", max_chars=2000
+        ),
     )
     write_steps = [
         step

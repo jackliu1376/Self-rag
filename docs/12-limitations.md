@@ -21,8 +21,9 @@
 | 文档解析 | 生产 Unstructured（PDF/Office/HTML/图）；缺依赖或 testing 降级 Markdown 标题切分。OCR/复杂表格不保证 | `app/retrieval/unstructured_parser.py` |
 | 文本清洗 | 切块后 NFKC/空白/硬换行；精确去重；近重复只日志。不做 embedding 聚类，不改中文数字。「七天」保持「七天」 | `app/retrieval/cleaning.py` |
 | 知识库 PII | 仅非 `.md` 入库前 `mask_pii`；政策 Markdown 与日志脱敏分开 | `app/core/security.py` |
+| 开放域聊天 | 默认关闭；`ALLOW_GENERAL_CHAT=true` 时非危险 `out_of_scope` 走 DIRECT，违法/危险话题仍拒答，医疗只建议就医 | `app/retrieval/adaptive.py` |
 | 多租户 | 无；`user_id` 字符串隔离 | `OrderRepository.get_visible_order` |
-| 身份认证 | 已做会话归属校验：session 只能被创建者读写，跨用户返回 403；`user_id` 本身仍由可信网关签发并绑定 | `app/repositories/session_repository.py` |
+| 身份认证 | 支持 `AUTH_MODE=trusted_header`：只信任网关注入的 `X-User-Id`（缺失 401），会话归属校验仍然生效；无内置登录，网关必须剥离客户端自带的同名 header | `app/api/auth.py` · `app/repositories/session_repository.py` |
 | 演示数据 | 启动不自动写入；显式运行 `python -m scripts.seed_demo`，可重复执行 | `scripts/seed_demo.py` |
 | 启动迁移 | `RUN_MIGRATIONS=true` 时启动跑 Alembic；默认仍 `create_all` | `app/repositories/migrations.py` |
 
@@ -36,6 +37,7 @@
 | 执行层 Fallback | `execute_with_fallback` |
 | 忠实度 LLM 自纠错 | `self_correct_answer` |
 | 待确认动作持久化 | `app/repositories/pending_actions.py`（DB 表，重启与多实例有效） |
+| 多轮记忆上下文 | `app/memory/context.py`（摘要 + 最近历史送入生成/路由/规划；短追问扩展检索 query） |
 | 知识库热重载 | `POST /admin/knowledge/reload` + 单篇 upsert/delete，无需重启 |
 | 启动迁移 | `RUN_MIGRATIONS=true` 走 Alembic（向量库重载时 Qdrant collection 会重建） |
 | Unstructured 多格式 ingest | `app/retrieval/unstructured_parser.py`（testing / 缺 extra 降级 Markdown） |
@@ -54,7 +56,7 @@
 
 1. 换更大 embedding 后另跑 `--task retrieval`，不要把 small 的数字写成 bge-m3。
 2. 本集上 RRF 未超过仅 small；若要证明融合有用，需要换集合或拆失败 case。
-3. 增加可信身份认证，并由服务端绑定 `user_id`，不能直接信任请求体。
+3. 部署时配置 `AUTH_MODE=trusted_header`，由网关完成登录认证、剥离客户端 `X-User-Id` 后再注入。
 4. 启动走 Alembic。
 5. `policy_version` 过滤与真正的增量索引（当前重载仍全量重建）。
 

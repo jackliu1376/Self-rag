@@ -27,4 +27,17 @@ describe("answer presentation", () => {
     expect(html).not.toContain("多跳检索");
     expect(html).not.toContain("4.2 秒");
   });
+
+  it("shows the current stage while the answer is streaming", () => {
+    const conversation: Conversation = {
+      id: "chat-3",
+      title: "处理中",
+      updatedAt: 0,
+      messages: [{ id: "answer-3", role: "assistant", state: "streaming", content: "", stage: "检索知识" }],
+    };
+    const html = renderToStaticMarkup(
+      <MessageView conversation={conversation} busy={true} onConfirm={() => {}} onCancel={() => {}} />,
+    );
+    expect(html).toContain("检索知识");
+  });
 });

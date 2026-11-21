@@ -7,6 +7,7 @@ import time
 from app.agents.state import AgentState
 from app.config.settings import Settings
 from app.core.enums import RetrievalStrategy
+from app.memory.context import retrieval_query
 from app.retrieval.hybrid import HybridRetriever
 from app.retrieval.query_rewrite import QueryRewriter
 from app.retrieval.reranker import DocumentReranker
@@ -25,7 +26,7 @@ async def retrieval_node(
     settings: Settings,
 ) -> dict:
     started = time.perf_counter()
-    query = state["user_query"]
+    query = retrieval_query(state["user_query"], state.get("messages") or [])
     strategy = state.get("strategy")
     top_k = (
         settings.retrieval_top_k_complex

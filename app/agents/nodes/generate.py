@@ -8,9 +8,11 @@ import time
 from pydantic import BaseModel, Field
 
 from app.agents.state import AgentState
+from app.config.settings import Settings
 from app.core.enums import RetrievalStrategy
 from app.core.exceptions import LLMOutputError, LLMProviderError
-from app.prompts.answer import ANSWER_SYSTEM, ANSWER_USER
+from app.memory.context import format_memory_context
+from app.prompts.answer import ANSWER_SYSTEM, ANSWER_USER, GENERAL_SYSTEM
 from app.providers.base import LLMProvider
 from app.providers.fake import OfflineLLMProvider
 from app.providers.json_parser import parse_model
@@ -24,7 +26,9 @@ class AnswerPayload(BaseModel):
     refused: bool = False
 
 
-async def generate_node(state: AgentState, llm: LLMProvider) -> dict:
+async def generate_node(
+    state: AgentState, llm: LLMProvider, settings: Settings | None = None
+) -> dict:
     started = time.perf_counter()
     chunks = state.get("retrieved_chunks") or []
     tools = state.get("tool_results") or []
@@ -70,8 +74,19 @@ async def generate_node(state: AgentState, llm: LLMProvider) -> dict:
         if state.get("confirmed_action")
         else ""
     )
+    general = (
+        settings is not None
+        and settings.allow_general_chat
+        and strategy == RetrievalStrategy.DIRECT
+    )
+    memory_context = format_memory_context(
+        state.get("messages") or [], state.get("summary") or "", max_chars=4000
+    )
+    memory_note = (
+        f"\n\n对话上下文（供指代消解，不要复述）：\n{memory_context}" if memory_context else ""
+    )
     messages = [
-        {"role": "system", "content": ANSWER_SYSTEM},
+        {"role": "system", "content": GENERAL_SYSTEM if general else ANSWER_SYSTEM},
         {
             "role": "user",
             "content": ANSWER_USER.format(
@@ -81,6 +96,7 @@ async def generate_node(state: AgentState, llm: LLMProvider) -> dict:
                 evidence=evidence,
                 tool_results=tool_text,
             )
+            + memory_note
             + confirmation_note,
         },
     ]

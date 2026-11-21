@@ -158,6 +158,8 @@ button:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
 .citation { max-width: 230px; display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px 4px 5px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .citation > span:last-child { overflow: hidden; text-overflow: ellipsis; }
 .citation-index { width: 17px; height: 17px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--accent); background: var(--accent-soft); font-weight: 650; flex: 0 0 auto; }
+.thinking-row { display: flex; align-items: center; gap: 10px; }
+.stage-label { color: var(--muted); font-size: 12px; }
 .action-card { max-width: 500px; display: flex; gap: 12px; padding: 17px; margin: 17px 0 10px; border: 1px solid var(--border); border-radius: 15px; background: var(--sidebar); }
 .action-icon { width: 32px; height: 32px; flex: 0 0 auto; display: flex; align-items: center; justify-content: center; border-radius: 9px; color: var(--accent); background: var(--accent-soft); }
 .action-content { min-width: 0; }

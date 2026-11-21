@@ -74,20 +74,18 @@ class IntentClassifier:
         self._prompt_version = prompt_version
         self._apply_overlay = apply_overlay
 
-    async def classify(self, query: str) -> IntentResult:
+    async def classify(self, query: str, *, context: str = "") -> IntentResult:
         fallback = rule_based_intent(query)
         if isinstance(self._llm, OfflineLLMProvider):
             return self._maybe_overlay(query, fallback)
+        user_content = INTENT_USER.format(query=query, prompt_version=self._prompt_version)
+        if context:
+            user_content = f"对话上下文：\n{context}\n\n{user_content}"
         try:
             response = await self._llm.generate(
                 [
                     {"role": "system", "content": self._system_prompt},
-                    {
-                        "role": "user",
-                        "content": INTENT_USER.format(
-                            query=query, prompt_version=self._prompt_version
-                        ),
-                    },
+                    {"role": "user", "content": user_content},
                 ],
                 temperature=0.0,
                 max_tokens=256,

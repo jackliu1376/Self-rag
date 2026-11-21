@@ -51,7 +51,7 @@ def build_graph(
     registry: ToolRegistry,
 ) -> CompiledStateGraph:
     classifier = IntentClassifier(llm)
-    adaptive = AdaptiveRouter(llm)
+    adaptive = AdaptiveRouter(llm, allow_general_chat=settings.allow_general_chat)
     rewriter = QueryRewriter(llm)
     self_rag = SelfRAGLoop(retriever, reranker, rewriter, llm, settings)
     planner = Planner(llm, registry)
@@ -75,7 +75,7 @@ def build_graph(
     )
     graph.add_node("plan_tasks", partial(planner_node, planner=planner))
     graph.add_node("execute_tools", partial(executor_node, registry=registry, settings=settings))
-    graph.add_node("generate_answer", partial(generate_node, llm=llm))
+    graph.add_node("generate_answer", partial(generate_node, llm=llm, settings=settings))
     graph.add_node("refuse_answer", refuse_node)
     graph.add_node("check_faithfulness", partial(faithfulness_node, checker=checker, llm=llm))
     graph.add_node("compact_memory", partial(memory_node, settings=settings, summarizer=summarizer))

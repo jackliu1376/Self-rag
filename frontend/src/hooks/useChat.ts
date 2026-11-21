@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import type { ChatResponse, Conversation, Message } from "../types";
 import { streamChat } from "../lib/api";
+import { stageLabel } from "../lib/stages";
 import { loadConversations, saveConversations } from "../lib/storage";
 
 interface State {
@@ -13,6 +14,7 @@ type Action =
   | { type: "delete"; id: string }
   | { type: "start"; conversation: Conversation; user: Message; assistant: Message }
   | { type: "token"; conversationId: string; messageId: string; text: string }
+  | { type: "stage"; conversationId: string; messageId: string; stage: string }
   | { type: "complete"; conversationId: string; messageId: string; response: ChatResponse }
   | { type: "fail"; conversationId: string; messageId: string; message: string; stopped: boolean }
   | { type: "dismiss"; conversationId: string; messageId: string };
@@ -54,6 +56,13 @@ function reducer(state: State, action: Action): State {
           ? { ...message, content: message.content + action.text }
           : message),
       }));
+    case "stage":
+      return updateConversation(state, action.conversationId, (item) => ({
+        ...item,
+        messages: item.messages.map((message) => message.id === action.messageId
+          ? { ...message, stage: action.stage }
+          : message),
+      }));
     case "complete":
       return updateConversation(state, action.conversationId, (item) => ({
         ...item,
@@ -64,6 +73,7 @@ function reducer(state: State, action: Action): State {
               ...message,
               content: action.response.answer,
               state: "complete",
+              stage: undefined,
               citations: action.response.citations,
               pendingAction: action.response.pending_action,
               strategy: action.response.strategy,
@@ -80,6 +90,7 @@ function reducer(state: State, action: Action): State {
               ...message,
               content: action.stopped ? message.content || "已停止生成。" : action.message,
               state: action.stopped ? "stopped" : "error",
+              stage: undefined,
             }
           : message),
       }));
@@ -150,6 +161,9 @@ export function useChat() {
           ...(confirmActionId ? { confirm_action_id: confirmActionId } : {}),
         },
         (event) => {
+          if (event.event === "node") {
+            dispatch({ type: "stage", conversationId: conversation.id, messageId: assistant.id, stage: stageLabel(event.node) });
+          }
           if (event.event === "token") {
             dispatch({ type: "token", conversationId: conversation.id, messageId: assistant.id, text: event.text });
           }

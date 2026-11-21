@@ -64,6 +64,7 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   state: "complete" | "streaming" | "error" | "stopped";
+  stage?: string;
   citations?: Citation[];
   pendingAction?: ActionProposal | null;
   strategy?: Strategy | null;

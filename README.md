@@ -58,7 +58,7 @@
 | **有出处的检索** | BM25、稠密向量、RRF 融合与精排；回答可带 `citations` | [检索模块](app/retrieval/) |
 | **多跳与自纠错** | 复合问题拆分检索，答案经过忠实度检查 | [智能体节点](app/agents/nodes/) |
 | **人工确认** | 高风险写操作先返回 `pending_action`，确认后才执行 | [工具与权限](app/tools/) |
-| **Web 对话工作台** | 流式显示、引用、本地会话搜索、深色模式与确认卡片 | [前端](frontend/) |
+| **Web 对话工作台** | 阶段进度、引用、本地会话搜索、深色模式与确认卡片 | [前端](frontend/) |
 | **可测可观测** | 离线评测、回归测试、结构化日志与 Prometheus 指标 | [评测](eval/) · [可观测性](app/observability/) |
 
 ### 五条处理路径
@@ -313,11 +313,11 @@ docs/             技术手册与教学文档
 
 | 优先级 | 改进项 | 目标与代码入口 |
 |:---:|:---|:---|
-| P0 | **身份认证** | 已完成会话归属校验（跨用户读取返回 403）；仍需由可信网关签发并绑定 `user_id`，不能信任请求体。[请求模型](app/schemas/chat.py) · [会话仓储](app/repositories/session_repository.py) |
-| P0 | **云端部署边界** | 移除数据库、Redis、Qdrant 的公网端口映射和固定密码；只开放受控的 Web/API 入口。[Compose](docker-compose.yml) |
-| P0 | **真正接入多轮记忆** | 回答生成目前只使用当前问题，初始摘要为空，压缩发生在回答之后；应把历史与摘要按预算送入生成、路由和规划。[对话服务](app/services/chat_service.py) · [生成节点](app/agents/nodes/generate.py) · [记忆节点](app/agents/nodes/memory.py) |
-| P1 | **可靠的人工确认** | 待确认操作从进程内字典迁移到持久化存储，支持过期、一次性消费和多副本。[对话服务](app/services/chat_service.py) · [执行节点](app/agents/nodes/executor.py) |
-| P1 | **准确呈现服务状态** | 区分 API 存活与模型、向量库就绪；Embedding 或精排降级时在接口和页面明确提示。[健康检查](app/api/routes/health.py) · [模型装配](app/services/container.py) |
+| P0 | ✅ **身份认证** | 支持 `AUTH_MODE=trusted_header`：只信任网关注入的 `X-User-Id`（缺失 401），并保留会话归属校验；生产需网关认证并剥离客户端同名 header。[身份解析](app/api/auth.py) · [会话仓储](app/repositories/session_repository.py) |
+| P0 | ✅ **云端部署边界** | 数据库、Redis、Qdrant 均无 host 端口映射，密码必须由 `POSTGRES_PASSWORD` 提供；只开放受控的 Web/API 入口。[Compose](docker-compose.yml) |
+| P0 | ✅ **真正接入多轮记忆** | 会话摘要从 DB 加载，最近历史与摘要按字符预算送入生成、路由、规划与检索；短追问会带上上一轮用户问题，压缩仍在回答后执行。[记忆上下文](app/memory/context.py) · [对话服务](app/services/chat_service.py) |
+| P1 | ✅ **可靠的人工确认** | 待确认操作已落 DB，支持过期、幂等防重和多副本。[待确认仓储](app/repositories/pending_actions.py) · [对话服务](app/services/chat_service.py) |
+| P1 | ✅ **准确呈现服务状态** | 区分 API 存活与模型、向量库就绪；Embedding 或精排降级时在 `/capabilities` 与前端 pill 明确提示。[健康检查](app/api/routes/health.py) · [模型装配](app/services/container.py) |
 
 ### 2. 提升功能与体验
 

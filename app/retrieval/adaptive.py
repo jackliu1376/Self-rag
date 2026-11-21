@@ -16,7 +16,8 @@ import re
 
 from app.core.constants import PROMPT_VERSION_COMPLEXITY
 from app.core.enums import IntentLabel, QueryComplexity, RetrievalStrategy
-from app.core.exceptions import LLMOutputError, LLMProviderError
+from app.core.exceptions import GuardrailError, LLMOutputError, LLMProviderError
+from app.guardrails.boundary import assert_in_scope
 from app.prompts.complexity import COMPLEXITY_SYSTEM, COMPLEXITY_USER
 from app.providers.base import LLMProvider
 from app.providers.fake import OfflineLLMProvider
@@ -129,38 +130,54 @@ def rule_based_complexity(query: str, intent: IntentResult) -> ComplexityResult:
 
 
 class AdaptiveRouter:
-    def __init__(self, llm: LLMProvider) -> None:
+    def __init__(self, llm: LLMProvider, *, allow_general_chat: bool = False) -> None:
         self._llm = llm
+        self._allow_general_chat = allow_general_chat
 
-    async def route(self, query: str, intent: IntentResult) -> ComplexityResult:
+    async def route(
+        self, query: str, intent: IntentResult, *, context: str = ""
+    ) -> ComplexityResult:
         fallback = rule_based_complexity(query, intent)
-        if isinstance(self._llm, OfflineLLMProvider):
-            return fallback
-        try:
-            response = await self._llm.generate(
-                [
-                    {"role": "system", "content": COMPLEXITY_SYSTEM},
-                    {
-                        "role": "user",
-                        "content": COMPLEXITY_USER.format(
-                            query=query,
-                            intent=intent.label.value,
-                            prompt_version=PROMPT_VERSION_COMPLEXITY,
-                        ),
-                    },
-                ],
-                temperature=0.0,
-                max_tokens=256,
-                response_format={"type": "json_object"},
+        result = fallback
+        if not isinstance(self._llm, OfflineLLMProvider):
+            user_content = COMPLEXITY_USER.format(
+                query=query,
+                intent=intent.label.value,
+                prompt_version=PROMPT_VERSION_COMPLEXITY,
             )
-            parsed = parse_model(response.content, ComplexityResult)
-            if (
-                fallback.rationale == "general_policy_without_order"
-                and parsed.strategy == RetrievalStrategy.AGENT
-            ):
-                return fallback
-            if _ORDER_ID.search(query) and fallback.strategy == RetrievalStrategy.AGENT:
-                return fallback
-            return parsed
-        except (LLMProviderError, LLMOutputError):
-            return fallback
+            if context:
+                user_content = f"对话上下文：\n{context}\n\n{user_content}"
+            try:
+                response = await self._llm.generate(
+                    [
+                        {"role": "system", "content": COMPLEXITY_SYSTEM},
+                        {"role": "user", "content": user_content},
+                    ],
+                    temperature=0.0,
+                    max_tokens=256,
+                    response_format={"type": "json_object"},
+                )
+                parsed = parse_model(response.content, ComplexityResult)
+                if (
+                    fallback.rationale == "general_policy_without_order"
+                    and parsed.strategy == RetrievalStrategy.AGENT
+                ):
+                    result = fallback
+                elif _ORDER_ID.search(query) and fallback.strategy == RetrievalStrategy.AGENT:
+                    result = fallback
+                else:
+                    result = parsed
+            except (LLMProviderError, LLMOutputError):
+                result = fallback
+        if self._allow_general_chat and intent.label == IntentLabel.OUT_OF_SCOPE:
+            try:
+                assert_in_scope(query)
+            except GuardrailError:
+                return result
+            return ComplexityResult(
+                complexity=QueryComplexity.SIMPLE,
+                strategy=RetrievalStrategy.DIRECT,
+                confidence=0.6,
+                rationale="general_chat_enabled",
+            )
+        return result

@@ -358,7 +358,7 @@ if not rag_judge.supported:
 
 ## 10. 自动化测试
 
-`pytest -q`：**202 passed**（本地含 `.[rerank]`；CI 干净环境 **198 passed + 4 skipped**，跳过的是需要可选依赖的模型加载测试）。覆盖 RRF、Adaptive 路由、护栏、压缩、工具权限、Skill、MCP、执行 Fallback、自纠错、订单仓储、HTTP 聊天、会话归属、待确认动作持久化、知识库热重载、启动迁移、配额解析、可观测性资产，以及 `eval` 指标函数与检索缓存 / 自纠正 / 查询改写 / 向量检索 / 分词。
+`pytest -q`：**223 passed**（本地含 `.[rerank]`；CI 干净环境 **219 passed + 4 skipped**，跳过的是需要可选依赖的模型加载测试）。覆盖 RRF、Adaptive 路由、护栏、压缩、工具权限、Skill、MCP、执行 Fallback、自纠错、订单仓储、HTTP 聊天、会话归属、待确认动作持久化、知识库热重载、启动迁移、配额解析、可观测性资产，以及 `eval` 指标函数与检索缓存 / 自纠正 / 查询改写 / 向量检索 / 分词。
 
 pytest **不**调用真实 DeepSeek / 不下载 Cross-Encoder。线上指标必须 `eval.runner --llm`；CE 分数必须 `hybrid+cross-encoder` 那一行。
 

@@ -53,7 +53,7 @@ class ChatRequest(BaseModel):
 
 ### `POST /api/v1/chat`
 
-**Request** 见上表。**Response**（`ChatResponse`）：
+**Request** 见上表。身份：默认 `AUTH_MODE=body` 信任请求体 `user_id`；`trusted_header` 模式下只信任网关的 `X-User-Id`，请求体 `user_id` 被忽略，缺失返回 401。**Response**（`ChatResponse`）：
 
 | 字段 | 含义 |
 |---|---|
